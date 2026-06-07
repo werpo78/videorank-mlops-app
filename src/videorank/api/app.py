@@ -59,7 +59,10 @@ class FeedbackRequest(BaseModel):
 
 def create_app() -> FastAPI:
     settings = Settings.from_env()
-    engine = load_engine(settings.model_path)
+    engine = load_engine(
+        settings.model_uri or settings.model_path,
+        model_version_override=settings.model_version,
+    )
     app = FastAPI(title="VideoRank Recommendation API", version="0.1.0")
     prediction_logger = PredictionLogger(
         table_id=settings.prediction_log_table,
@@ -78,8 +81,15 @@ def create_app() -> FastAPI:
         return health_payload()
 
     @app.get("/readyz")
-    def readyz() -> dict[str, str]:
-        return {"status": "ready", "model_version": engine.model_version}
+    def readyz() -> dict[str, str | None]:
+        return {
+            "status": "ready",
+            "model_version": engine.model_version,
+            "vertex_model_resource": settings.vertex_model_resource,
+            "data_snapshot_id": settings.data_snapshot_id,
+            "model_git_sha": settings.model_git_sha,
+            "model_promoted_at": settings.model_promoted_at,
+        }
 
     @app.get("/metrics")
     def metrics() -> Response:

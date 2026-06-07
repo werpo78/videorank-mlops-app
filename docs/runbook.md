@@ -70,6 +70,9 @@ the actor that builds, pushes and opens the promotion PR.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`: OIDC provider resource created by Terraform.
 - `GCP_CI_SERVICE_ACCOUNT`: service account impersonated by GitHub Actions.
 - `GCP_RUNTIME_SERVICE_ACCOUNT`: Cloud Run runtime service account.
+- `GCP_TRAINING_SERVICE_ACCOUNT`: optional GitHub Actions environment or repo
+  variable for the Vertex AI runtime service account; otherwise CI derives
+  `videorank-training@${GCP_PROJECT_ID}.iam.gserviceaccount.com`.
 - `CONFIG_REPO_TOKEN`: token used only to checkout and open PRs in
   `videorank-mlops-config`.
 
@@ -80,6 +83,12 @@ gh secret set GCP_PROJECT_ID --repo werpo78/videorank-mlops-app --body videorank
 gh secret set GCP_WORKLOAD_IDENTITY_PROVIDER --repo werpo78/videorank-mlops-app --body projects/57648357123/locations/global/workloadIdentityPools/github-actions/providers/github
 gh secret set GCP_CI_SERVICE_ACCOUNT --repo werpo78/videorank-mlops-app --body videorank-ci@videorank-mlops-werpo78.iam.gserviceaccount.com
 gh secret set GCP_RUNTIME_SERVICE_ACCOUNT --repo werpo78/videorank-mlops-app --body videorank-run@videorank-mlops-werpo78.iam.gserviceaccount.com
+```
+
+Set the optional Vertex AI training service account variable:
+
+```bash
+gh variable set GCP_TRAINING_SERVICE_ACCOUNT --repo werpo78/videorank-mlops-app --body videorank-training@videorank-mlops-werpo78.iam.gserviceaccount.com
 ```
 
 Set the cross-repo token without putting it in shell history or chat:
@@ -109,6 +118,140 @@ succeed with weaker permissions while branch push still fails.
   Secrets for Kubernetes.
 - Local operator state: `.gcloud/`, `terraform.tfvars`, `terraform.tfstate` and
   ADC files are ignored by Git.
+
+
+## Vertex AI MovieLens Pipeline
+
+Install pipeline dependencies:
+
+```bash
+python -m pip install -e ".[dev,ml,pipelines]"
+```
+
+Run a local real-data smoke test:
+
+```bash
+make movielens
+cat artifacts/movielens-model/metrics.json | jq
+```
+
+Compile the Kubeflow Pipelines v2 YAML:
+
+```bash
+make compile-pipeline
+```
+
+Deploy from Git:
+
+- Pull requests run the `continuous-training` validation job: install
+  dependencies, lint, run MovieLens pipeline unit tests and compile the KFP YAML.
+- Pushes to `main`, the weekly schedule, and manual `workflow_dispatch` runs
+  submit a Vertex AI `PipelineJob`. GitHub authenticates to GCP with OIDC/WIF as
+  the CI service account, then Vertex executes the pipeline as the training
+  service account.
+- The workflow passes `data_snapshot_id`, `git_sha`, `run_id`, quality-gate
+  thresholds and Vertex labels for lineage.
+- Vertex Datasets, Experiments and Model Registry are enabled by default.
+- Feature Store publishes the BigQuery feature source table by default; online
+  Feature Store resources are opt-in with `enable_vertex_feature_store=true`.
+- `sync=true` on manual dispatch waits for completion; the default submits and
+  returns quickly.
+
+Manual GitHub run:
+
+```bash
+gh workflow run vertex-pipeline.yml \
+  --repo werpo78/videorank-mlops-app \
+  -f sync=false \
+  -f max_ratings=25000 \
+  -f factors=24 \
+  -f epochs=8 \
+  -f enable_vertex_datasets=true \
+  -f enable_vertex_experiments=true \
+  -f enable_vertex_model_registry=true \
+  -f enable_vertex_feature_store=false
+```
+
+Run locally on Vertex AI Pipelines with the dedicated training service account:
+
+```bash
+PROJECT_ID=videorank-mlops-werpo78
+REGION=europe-west1
+PIPELINE_ROOT=gs://${PROJECT_ID}-videorank-artifacts/vertex-pipelines
+TRAINING_SA=videorank-training@${PROJECT_ID}.iam.gserviceaccount.com
+
+python pipelines/kfp/submit_vertex.py \
+  --project-id "$PROJECT_ID" \
+  --region "$REGION" \
+  --pipeline-root "$PIPELINE_ROOT" \
+  --service-account "$TRAINING_SA" \
+  --enable-vertex-datasets true \
+  --enable-vertex-experiments true \
+  --enable-vertex-model-registry true \
+  --enable-vertex-feature-store false
+```
+
+If local ADC is stale but `gcloud auth print-access-token` works, prefix the
+submit command with `GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"`.
+The token stays in-process and is not written to disk.
+
+If your local user cannot attach the service account, grant only `actAs` on the
+training service account:
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding "$TRAINING_SA"   --member="user:$(gcloud config get-value account)"   --role="roles/iam.serviceAccountUser"   --project="$PROJECT_ID"
+```
+
+Cost guardrails: MovieLens latest-small is small, the pipeline uses CPU-only
+containers, caching is enabled, and artifacts land under the lifecycle-managed
+project bucket.
+
+Validation note: on 2026-06-07, the smoke run
+`videorank-movielens-training-20260607192505` succeeded with `max_ratings=500`,
+Vertex Dataset, BigQuery feature source, Vertex Experiments and Vertex Model
+Registry enabled, and online Feature Store disabled.
+
+## Model Promotion
+
+A validated CT run produces a model candidate, but serving promotion is a
+separate review step. Use the `promote-model` workflow to open a pull request in
+`videorank-mlops-config`; do not mutate the cluster manually.
+
+Required inputs:
+
+- `model_artifact_uri`: immutable GCS artifact directory or file, for example
+  `gs://.../train-matrix-factorization.../model`.
+- `model_version`: version exposed in `/readyz`, logs and prediction records.
+- `vertex_model_resource`: optional but recommended Model Registry version, for
+  example `projects/.../locations/europe-west1/models/...@...`.
+- `git_sha` and `data_snapshot_id`: lineage fields from the CT run.
+
+Trigger a promotion PR:
+
+```bash
+gh workflow run promote-model.yml \
+  --repo werpo78/videorank-mlops-app \
+  -f environment=dev \
+  -f model_artifact_uri='gs://bucket/path/to/model' \
+  -f model_version='movielens-20260607-abc123' \
+  -f vertex_model_resource='projects/57648357123/locations/europe-west1/models/123@4' \
+  -f git_sha='abc123' \
+  -f data_snapshot_id='movielens-latest-small-2026-06-07' \
+  -f promotion_reason='Offline quality gate passed; ready for canary.'
+```
+
+The PR updates only runtime model config in
+`apps/videorank-api/overlays/dev/values.yaml`:
+
+- `VIDEORANK_MODEL_URI`
+- `VIDEORANK_MODEL_VERSION`
+- `VIDEORANK_VERTEX_MODEL_RESOURCE`
+- `VIDEORANK_DATA_SNAPSHOT_ID`
+- `VIDEORANK_MODEL_GIT_SHA`
+- `VIDEORANK_MODEL_PROMOTED_AT`
+
+Rollback is a Git revert of the config repo promotion PR. No retraining and no
+image rebuild are required.
 
 ## Flux Lab
 

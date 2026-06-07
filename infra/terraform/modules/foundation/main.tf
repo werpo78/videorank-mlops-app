@@ -204,6 +204,24 @@ resource "google_project_iam_member" "training_bigquery_editor" {
   member  = "serviceAccount:${google_service_account.training.email}"
 }
 
+resource "google_project_iam_member" "training_vertex_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.training.email}"
+}
+
+resource "google_project_iam_member" "ci_vertex_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+
+resource "google_service_account_iam_member" "ci_can_run_as_training" {
+  service_account_id = google_service_account.training.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.ci.email}"
+}
+
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions"
   display_name              = "GitHub Actions"

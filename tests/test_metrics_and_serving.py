@@ -36,6 +36,54 @@ class MetricsAndServingTests(unittest.TestCase):
         self.assertEqual(len(response["recommendations"]), 5)
         self.assertEqual(response["model_version"], "test")
 
+    def test_matrix_factorization_artifact_can_serve_recommendations(self) -> None:
+        try:
+            import numpy  # noqa: F401
+        except ModuleNotFoundError:
+            self.skipTest("numpy is not installed")
+
+        from videorank.model.matrix_factorization import MatrixFactorizationRanker
+
+        rows = [
+            {"user_id": "user_1", "video_id": "movie_1", "label": 1},
+            {"user_id": "user_1", "video_id": "movie_2", "label": 0},
+            {"user_id": "user_2", "video_id": "movie_1", "label": 1},
+            {"user_id": "user_2", "video_id": "movie_2", "label": 0},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = Path(tmpdir) / "model" / "model.json"
+            ranker = MatrixFactorizationRanker.fresh(
+                [row["user_id"] for row in rows],
+                [row["video_id"] for row in rows],
+                factors=4,
+            ).fit(rows, epochs=1)
+            ranker.save(
+                model_path,
+                extra={
+                    "model_version": "mf-promoted",
+                    "catalog": [
+                        {
+                            "video_id": "movie_1",
+                            "category": "drama",
+                            "ratings": 2,
+                            "positive_labels": 2,
+                            "positive_rate": 0.8,
+                        },
+                        {
+                            "video_id": "movie_2",
+                            "category": "comedy",
+                            "ratings": 2,
+                            "positive_labels": 0,
+                            "positive_rate": 0.2,
+                        },
+                    ],
+                },
+            )
+            engine = RecommendationEngine.from_model_path(model_path)
+            response = engine.recommend("user_1", limit=2, experiment_id="force")
+        self.assertEqual(response["model_version"], "mf-promoted")
+        self.assertEqual(len(response["recommendations"]), 2)
+
     def test_api_health_and_readiness_routes_when_fastapi_is_installed(self) -> None:
         try:
             from fastapi.testclient import TestClient

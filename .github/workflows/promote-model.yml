@@ -1,0 +1,98 @@
+name: promote-model
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+      model_artifact_uri:
+        description: "Immutable model artifact URI, for example gs://bucket/path/model"
+        required: true
+      model_version:
+        description: "Human-readable model version to expose in serving logs"
+        required: true
+      vertex_model_resource:
+        description: "Vertex Model Registry resource, for example projects/.../models/...@version"
+        required: false
+        default: ""
+      git_sha:
+        description: "Training code Git SHA"
+        required: false
+        default: ""
+      data_snapshot_id:
+        description: "Training data snapshot id"
+        required: false
+        default: ""
+      promotion_reason:
+        description: "Short reason for the promotion PR"
+        required: false
+        default: "Offline quality gate passed and candidate approved for rollout."
+
+permissions:
+  contents: read
+
+env:
+  CONFIG_REPO: videorank-mlops-config
+
+jobs:
+  open-promotion-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install promotion dependencies
+        run: python -m pip install "PyYAML>=6.0"
+
+      - name: Checkout config repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ env.CONFIG_REPO }}
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+          path: config-repo
+
+      - name: Update promoted model values
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+          MODEL_ARTIFACT_URI: ${{ inputs.model_artifact_uri }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          VERTEX_MODEL_RESOURCE: ${{ inputs.vertex_model_resource }}
+          MODEL_GIT_SHA: ${{ inputs.git_sha }}
+          DATA_SNAPSHOT_ID: ${{ inputs.data_snapshot_id }}
+          PROMOTION_REASON: ${{ inputs.promotion_reason }}
+        run: |
+          set -euo pipefail
+          VALUES_PATH="config-repo/apps/videorank-api/overlays/${TARGET_ENV}/values.yaml"
+          python scripts/promote_model_to_config.py             --values-path "${VALUES_PATH}"             --model-artifact-uri "${MODEL_ARTIFACT_URI}"             --model-version "${MODEL_VERSION}"             --vertex-model-resource "${VERTEX_MODEL_RESOURCE}"             --git-sha "${MODEL_GIT_SHA}"             --data-snapshot-id "${DATA_SNAPSHOT_ID}"             --promotion-reason "${PROMOTION_REASON}"
+
+      - name: Open model promotion pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: config-repo
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+          branch: promote/model-${{ inputs.environment }}-${{ github.run_id }}
+          title: "Promote VideoRank model ${{ inputs.model_version }} to ${{ inputs.environment }}"
+          body: |
+            Promote a validated VideoRank model candidate.
+
+            Environment: `${{ inputs.environment }}`
+            Model version: `${{ inputs.model_version }}`
+            Artifact URI: `${{ inputs.model_artifact_uri }}`
+            Vertex model: `${{ inputs.vertex_model_resource }}`
+            Git SHA: `${{ inputs.git_sha }}`
+            Data snapshot: `${{ inputs.data_snapshot_id }}`
+
+            Reason: ${{ inputs.promotion_reason }}
+
+            Rollback: revert this config repo PR.
+          commit-message: "Promote VideoRank model ${{ inputs.model_version }}"

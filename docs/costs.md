@@ -48,3 +48,19 @@ Kubernetes the default runtime for a small API.
 - Move older artifacts to Nearline after 30 days.
 - Delete lab artifacts after 90 days.
 - Keep model artifacts versioned, but cap retention in dev.
+
+
+## Vertex AI Pipeline Cost Rules
+
+- Use MovieLens latest-small for the lab, not a large benchmark dataset.
+- Default GitHub CT to `max_ratings=25000`; raise it manually only when needed.
+- Keep components CPU-only and short-lived.
+- Keep Vertex pipeline caching enabled during iteration, but change
+  `data_snapshot_id` when the training data snapshot changes.
+- Store pipeline artifacts in the lifecycle-managed artifacts bucket.
+- Do not deploy Vertex Endpoints unless there is a serving experiment to justify it.
+- Vertex Datasets, Experiments and Model Registry are metadata/control-plane
+  resources for this lab; clean up old runs/models if they become noisy.
+- Feature Store online resources are opt-in because online stores can create
+  persistent cost; keep `enable_vertex_feature_store=false` unless testing it.
+- Use the weekly CT schedule for the lab; disable it if credits become tight.

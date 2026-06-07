@@ -1,0 +1,215 @@
+name: continuous-training
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/vertex-pipeline.yml"
+      - "pipelines/kfp/**"
+      - "src/videorank/data/movielens.py"
+      - "src/videorank/model/matrix_factorization.py"
+      - "src/videorank/model/train_movielens.py"
+      - "tests/test_movielens_pipeline.py"
+      - "pyproject.toml"
+      - "Makefile"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/vertex-pipeline.yml"
+      - "pipelines/kfp/**"
+      - "src/videorank/data/movielens.py"
+      - "src/videorank/model/matrix_factorization.py"
+      - "src/videorank/model/train_movielens.py"
+      - "tests/test_movielens_pipeline.py"
+      - "pyproject.toml"
+      - "Makefile"
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      sync:
+        description: "Wait for the Vertex AI PipelineJob to finish"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      max_ratings:
+        description: "Maximum MovieLens ratings to train on; 0 means all rows"
+        required: false
+        default: "25000"
+      factors:
+        description: "Embedding dimension for matrix factorization"
+        required: false
+        default: "24"
+      epochs:
+        description: "Training epochs"
+        required: false
+        default: "8"
+      min_model_ndcg_at_10:
+        description: "Minimum absolute NDCG@10 required by the quality gate"
+        required: false
+        default: "0.05"
+      min_ndcg_lift:
+        description: "Minimum NDCG@10 lift over popularity baseline"
+        required: false
+        default: "-0.02"
+      enable_vertex_datasets:
+        description: "Create a Vertex AI managed Dataset for the training snapshot"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      enable_vertex_experiments:
+        description: "Log metrics and params to Vertex AI Experiments"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      enable_vertex_model_registry:
+        description: "Upload the gated candidate to Vertex AI Model Registry"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      enable_vertex_feature_store:
+        description: "Create/update Vertex AI Feature Store online resources"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: europe-west1
+  PIPELINE_TEMPLATE: artifacts/pipelines/videorank_movielens_training.yaml
+
+jobs:
+  validate:
+    name: validate-kfp-template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -e ".[dev,ml,pipelines]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Unit tests
+        run: pytest tests/test_movielens_pipeline.py
+
+      - name: Compile KFP template
+        run: python pipelines/kfp/pipeline.py --output "${PIPELINE_TEMPLATE}"
+
+      - name: Upload compiled template
+        uses: actions/upload-artifact@v4
+        with:
+          name: videorank-kfp-template
+          path: ${{ env.PIPELINE_TEMPLATE }}
+
+  submit:
+    name: submit-vertex-pipelinejob
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: dev
+    concurrency:
+      group: videorank-continuous-training-dev
+      cancel-in-progress: false
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pipeline dependencies
+        run: python -m pip install -e ".[pipelines]"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_CI_SERVICE_ACCOUNT }}
+
+      - name: Submit Vertex AI PipelineJob
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          TRAINING_SERVICE_ACCOUNT: ${{ vars.GCP_TRAINING_SERVICE_ACCOUNT }}
+          WORKFLOW_SYNC: ${{ inputs.sync || 'false' }}
+          MAX_RATINGS: ${{ inputs.max_ratings || '25000' }}
+          FACTORS: ${{ inputs.factors || '24' }}
+          EPOCHS: ${{ inputs.epochs || '8' }}
+          MIN_MODEL_NDCG_AT_10: ${{ inputs.min_model_ndcg_at_10 || '0.05' }}
+          MIN_NDCG_LIFT: ${{ inputs.min_ndcg_lift || '-0.02' }}
+          ENABLE_VERTEX_DATASETS: ${{ inputs.enable_vertex_datasets || 'true' }}
+          ENABLE_VERTEX_EXPERIMENTS: ${{ inputs.enable_vertex_experiments || 'true' }}
+          ENABLE_VERTEX_MODEL_REGISTRY: ${{ inputs.enable_vertex_model_registry || 'true' }}
+          ENABLE_VERTEX_FEATURE_STORE: ${{ inputs.enable_vertex_feature_store || 'false' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${PIPELINE_TEMPLATE}")"
+          python pipelines/kfp/pipeline.py --output "${PIPELINE_TEMPLATE}"
+
+          if [[ -z "${TRAINING_SERVICE_ACCOUNT}" ]]; then
+            TRAINING_SERVICE_ACCOUNT="videorank-training@${PROJECT_ID}.iam.gserviceaccount.com"
+          fi
+
+          PIPELINE_ROOT="gs://${PROJECT_ID}-videorank-artifacts/vertex-pipelines"
+          DATA_SNAPSHOT_ID="movielens-latest-small-$(date -u +'%Y-%m-%d')"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          DISPLAY_NAME="videorank-movielens-ct-${SHORT_SHA}"
+          SERVING_IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/videorank/videorank-api:${GITHUB_SHA}"
+          SYNC_ARGS=()
+          if [[ "${WORKFLOW_SYNC}" == "true" ]]; then
+            SYNC_ARGS+=(--sync)
+          fi
+
+          python pipelines/kfp/submit_vertex.py \
+            --project-id "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --pipeline-root "${PIPELINE_ROOT}" \
+            --service-account "${TRAINING_SERVICE_ACCOUNT}" \
+            --template-path "${PIPELINE_TEMPLATE}" \
+            --display-name "${DISPLAY_NAME}" \
+            --max-ratings "${MAX_RATINGS}" \
+            --data-snapshot-id "${DATA_SNAPSHOT_ID}" \
+            --git-sha "${GITHUB_SHA}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --serving-container-image-uri "${SERVING_IMAGE_URI}" \
+            --enable-vertex-datasets "${ENABLE_VERTEX_DATASETS}" \
+            --enable-vertex-experiments "${ENABLE_VERTEX_EXPERIMENTS}" \
+            --enable-vertex-model-registry "${ENABLE_VERTEX_MODEL_REGISTRY}" \
+            --enable-vertex-feature-store "${ENABLE_VERTEX_FEATURE_STORE}" \
+            --factors "${FACTORS}" \
+            --epochs "${EPOCHS}" \
+            --min-model-ndcg-at-10 "${MIN_MODEL_NDCG_AT_10}" \
+            --min-ndcg-lift "${MIN_NDCG_LIFT}" \
+            --label app=videorank \
+            --label env=dev \
+            --label workflow=continuous_training \
+            --label trigger="${GITHUB_EVENT_NAME}" \
+            --label git_sha="${GITHUB_SHA}" \
+            --label github_run_id="${GITHUB_RUN_ID}" \
+            "${SYNC_ARGS[@]}"

@@ -169,6 +169,176 @@ Q: Vertex AI Pipelines vs self-hosted Kubeflow?
 A: Vertex reduces cluster operations and is faster to operate on GCP. Self-hosted
 Kubeflow gives more control but requires owning the platform.
 
+
+Q: What is the concrete Vertex AI/Kubeflow pipeline now?
+
+A: A Kubeflow Pipelines v2 DAG compiled to YAML and submitted to Vertex AI
+Pipelines. It prepares MovieLens latest-small, catalogs the snapshot in Vertex
+AI Datasets, publishes user features for Vertex AI Feature Store, trains a
+matrix factorization ranker, logs metrics to Experiments, applies a quality
+gate, uploads the candidate to Model Registry and writes registration metadata.
+
+Q: Why use Vertex AI Pipelines instead of self-hosting Kubeflow?
+
+A: The role needs Kubeflow concepts, but self-hosting Kubeflow would consume
+time and GKE budget. Vertex runs KFP pipelines as a managed service, so we can
+focus on ML workflow, artifacts, metadata, IAM and promotion decisions.
+
+Q: What does Vertex AI Dataset add over a GCS file?
+
+A: GCS stores bytes; Vertex Dataset is a managed ML metadata resource. It makes
+the training snapshot discoverable in Vertex, links it to lineage, and gives ML
+teams a common control-plane object to discuss data used by training.
+
+Q: What does Vertex AI Feature Store add over BigQuery?
+
+A: BigQuery is the offline/source table. Vertex AI Feature Store manages feature
+views over that source and can serve features online. In this lab we always
+publish the BigQuery feature source and make online Feature Store resources
+opt-in because they can create persistent cost.
+
+Q: Why use Vertex AI Experiments?
+
+A: Experiments answer run-comparison questions: which Git SHA, data snapshot,
+hyperparameters and metrics produced this result. That is different from Model
+Registry, which manages model candidates and versions.
+
+Q: Why use Vertex AI Model Registry if Cloud Run serves the API?
+
+A: Model Registry is the model lifecycle record: artifact URI, container URI,
+metadata and candidate state. It does not force Vertex Endpoint serving. The
+team can still serve via Cloud Run while using Registry for governance.
+
+Q: Why MovieLens for a Dailymotion-like use case?
+
+A: It is a real public user-item interaction dataset with timestamps and item
+metadata. Movies are not short-form videos, but the recommendation structure is
+the same: users interact with catalog items and we rank candidates.
+
+Q: Why not keep only synthetic data?
+
+A: Synthetic data is useful for deterministic tests and demos, but a real
+dataset exposes real sparsity, popularity bias, cold-start cases and temporal
+split issues. That makes interview discussion more credible.
+
+Q: Why matrix factorization?
+
+A: It is a standard recommender baseline that learns user and item embeddings.
+It is explainable, CPU-friendly, cheap to train and directly tied to ranking,
+unlike a generic classifier that ignores collaborative signal.
+
+Q: Why compare to popularity baseline?
+
+A: Popularity is the fallback and a strong simple baseline. A learned ranker
+should justify its operational complexity by beating or at least matching that
+baseline on ranking metrics before online tests.
+
+Q: Why self-contained KFP components?
+
+A: Vertex executes each component in its own container. Self-contained
+components make the compiled YAML runnable without assuming the local repo is
+mounted. In production, I would move repeated logic into a versioned training
+container or package.
+
+Q: How do you handle KFP artifacts correctly on Vertex?
+
+A: Treat artifact paths as artifact directories. For example, the prepare step
+writes `events.jsonl` under the `Dataset` artifact path, and downstream steps
+read that file from their materialized input artifact directory. This avoids
+confusing artifact URI/path with a raw file path.
+
+Q: Why a dedicated training service account?
+
+A: Vertex pipeline jobs need access to pipeline artifacts and data, not Cloud
+Run deployment rights. A `videorank-training` service account limits blast
+radius and makes audit logs clearer.
+
+Q: What is `pipeline_root`?
+
+A: It is the GCS location where Vertex stores pipeline artifacts and metadata
+payloads. Here it uses the lifecycle-managed artifacts bucket to control cost.
+
+Q: What does the quality gate protect?
+
+A: It blocks registration metadata if offline metrics fail minimum NDCG or lift
+thresholds. In production, that gate would also include freshness, bias/safety,
+latency and model-size constraints.
+
+Q: What is Continuous Training?
+
+A: Continuous Training is the automated retraining and validation loop for ML
+models. It can be triggered by code changes, data changes, a schedule or manual
+operation. It produces a model candidate with metrics and lineage; it does not
+blindly replace production.
+
+Q: How do you deploy the Vertex AI pipeline from Git?
+
+A: The app repo has a `continuous-training` GitHub Actions workflow. On pull
+requests it validates code and compiles the KFP template. On `main`, weekly
+schedule or manual dispatch it authenticates with GitHub OIDC through Workload
+Identity Federation, uses the CI service account to call Vertex AI, and submits
+a `PipelineJob` that runs as the dedicated training service account. No JSON key
+is stored.
+
+Q: Why is Flux not deploying this Vertex AI pipeline?
+
+A: Flux reconciles Kubernetes objects. Vertex AI Pipelines is a managed GCP
+resource, so in this project CI submits it through the Vertex SDK. If we wanted
+full GitOps for GCP resources, we could add Config Connector or a dedicated
+platform controller, but that is extra scope for this interview lab.
+
+Q: What permissions are needed for Git-to-Vertex deployment?
+
+A: The GitHub OIDC identity impersonates the CI service account. That CI account
+needs `roles/aiplatform.user` to submit pipeline jobs and `iam.serviceAccounts.actAs`
+on the training service account. The training account needs only data/artifact
+permissions required by the pipeline.
+
+Q: Why pass `data_snapshot_id`, `git_sha` and `run_id` into the pipeline?
+
+A: They make lineage explicit. `data_snapshot_id` says which training data was
+used and prevents unsafe cache reuse when data changes; `git_sha` links the run
+to code; `run_id` links it to the CI/CT execution.
+
+Q: Why does CT register a candidate instead of deploying the model immediately?
+
+A: Offline validation is necessary but not sufficient. A production promotion
+should still have review, serving constraints, canary or A/B controls and a
+rollback path. CT creates an auditable candidate; CD handles promotion.
+
+Q: How do you promote a validated model in this project?
+
+A: I run the `promote-model` GitHub Actions workflow with the Vertex/GCS model
+artifact URI, model version, Vertex Model Registry resource and lineage fields.
+The workflow opens a PR in the config repo that pins `VIDEORANK_MODEL_URI` and
+metadata. Merge promotes; revert rolls back.
+
+Q: Why promote by model URI instead of rebuilding the image?
+
+A: The serving code and the model artifact have different lifecycles. Rebuilding
+the image for every model couples app release to model release. Pinning an
+immutable `gs://` model artifact lets us promote or rollback a model without a
+new container build.
+
+Q: How does the API load the promoted model?
+
+A: Runtime config sets `VIDEORANK_MODEL_URI`. If it points to `gs://`, the API
+downloads `model.json` to `/tmp/videorank/model-cache` on startup using the
+runtime service account. If loading fails, the API falls back to the embedded
+baseline catalog rather than taking serving down.
+
+Q: Which Vertex resources are created by default in the CT?
+
+A: Vertex Dataset, Vertex Experiments and Vertex Model Registry are enabled by
+default. The pipeline also publishes a BigQuery feature source table. Online
+Feature Store resources are off by default and require
+`enable_vertex_feature_store=true` because they can create persistent cost.
+
+Q: How do Vertex labels help operations?
+
+A: Labels make runs searchable and auditable by app, environment, trigger, Git
+SHA and GitHub run id. They also help cost attribution and incident debugging.
+
 ## 6. Serving Cloud Run
 
 Q: Why Cloud Run for permanent serving?

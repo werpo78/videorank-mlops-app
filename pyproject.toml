@@ -14,7 +14,7 @@ dependencies = [
   "pydantic>=2.8",
   "prometheus-client>=0.20",
   "google-cloud-bigquery>=3.25",
-  "google-cloud-storage>=2.18",
+  "google-cloud-storage>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -25,20 +25,25 @@ ml = [
   "joblib>=1.4",
 ]
 pipelines = [
-  "apache-beam[gcp]>=2.59",
   "kfp>=2.8",
   "google-cloud-aiplatform>=1.70",
+]
+dataflow = [
+  "apache-beam[gcp]>=2.59",
 ]
 dev = [
   "pytest>=8.3",
   "ruff>=0.7",
   "httpx>=0.27",
   "mypy>=1.11",
+  "PyYAML>=6.0",
 ]
 
 [project.scripts]
 videorank-generate = "videorank.data.generate:main"
+videorank-prepare-movielens = "videorank.data.movielens:main"
 videorank-train = "videorank.model.train:main"
+videorank-train-movielens = "videorank.model.train_movielens:main"
 videorank-serve = "videorank.api.app:main"
 videorank-drift = "videorank.monitoring.drift:main"
 

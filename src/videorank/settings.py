@@ -10,6 +10,12 @@ class Settings:
     region: str
     environment: str
     model_path: str
+    model_uri: str | None
+    model_version: str | None
+    vertex_model_resource: str | None
+    data_snapshot_id: str | None
+    model_git_sha: str | None
+    model_promoted_at: str | None
     prediction_log_table: str | None
     prediction_log_local_path: str
     feedback_log_local_path: str
@@ -26,6 +32,12 @@ class Settings:
                 "VIDEORANK_MODEL_PATH",
                 "src/videorank/resources/seed_model.json",
             ),
+            model_uri=os.getenv("VIDEORANK_MODEL_URI"),
+            model_version=os.getenv("VIDEORANK_MODEL_VERSION"),
+            vertex_model_resource=os.getenv("VIDEORANK_VERTEX_MODEL_RESOURCE"),
+            data_snapshot_id=os.getenv("VIDEORANK_DATA_SNAPSHOT_ID"),
+            model_git_sha=os.getenv("VIDEORANK_MODEL_GIT_SHA"),
+            model_promoted_at=os.getenv("VIDEORANK_MODEL_PROMOTED_AT"),
             prediction_log_table=os.getenv(
                 "VIDEORANK_PREDICTION_LOG_TABLE",
                 f"{project_id}.{dataset}.prediction_logs",

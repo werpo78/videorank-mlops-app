@@ -14,3 +14,11 @@ output "workload_identity_provider" {
   value = module.foundation.workload_identity_provider
 }
 
+
+output "training_service_account_email" {
+  value = module.foundation.training_service_account_email
+}
+
+output "artifacts_bucket" {
+  value = module.foundation.artifacts_bucket
+}
