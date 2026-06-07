@@ -5,13 +5,21 @@ import unittest
 from pathlib import Path
 
 from videorank.data.generate import generate_events, write_jsonl
-from videorank.features.offline import build_training_examples, read_events, temporal_train_eval_split
+from videorank.features.offline import (
+    build_training_examples,
+    read_events,
+    temporal_train_eval_split,
+)
 
 
 class DataAndFeatureTests(unittest.TestCase):
     def test_generation_is_deterministic(self) -> None:
-        first = [event.to_dict() for event in generate_events(users=4, videos=3, events=10, seed=42)]
-        second = [event.to_dict() for event in generate_events(users=4, videos=3, events=10, seed=42)]
+        first = [
+            event.to_dict() for event in generate_events(users=4, videos=3, events=10, seed=42)
+        ]
+        second = [
+            event.to_dict() for event in generate_events(users=4, videos=3, events=10, seed=42)
+        ]
         self.assertEqual(first, second)
 
     def test_jsonl_roundtrip_and_temporal_split(self) -> None:
@@ -34,4 +42,3 @@ class DataAndFeatureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

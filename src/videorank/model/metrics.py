@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from typing import Iterable
+from collections.abc import Iterable
 
 
 def auc_score(labels: list[int], scores: list[float]) -> float:
@@ -55,7 +55,10 @@ def grouped_by_user(
 def brier_score(labels: list[int], scores: list[float]) -> float:
     if not labels:
         return 0.0
-    return sum((score - label) ** 2 for label, score in zip(labels, scores, strict=True)) / len(labels)
+    squared_errors = (
+        (score - label) ** 2 for label, score in zip(labels, scores, strict=True)
+    )
+    return sum(squared_errors) / len(labels)
 
 
 def population_stability_index(
@@ -79,5 +82,7 @@ def population_stability_index(
 
     expected_rates = bucket_counts(expected)
     actual_rates = bucket_counts(actual)
-    return sum((actual_rate - expected_rate) * math.log(actual_rate / expected_rate) for expected_rate, actual_rate in zip(expected_rates, actual_rates, strict=True))
-
+    return sum(
+        (actual_rate - expected_rate) * math.log(actual_rate / expected_rate)
+        for expected_rate, actual_rate in zip(expected_rates, actual_rates, strict=True)
+    )

@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
 
 from videorank.data.schema import User, Video, WatchEvent
 
@@ -62,7 +62,7 @@ def generate_events(
     user_rows = build_users(users, rng)
     video_rows = build_videos(videos, rng)
     preferences = _user_preferences(user_rows, rng)
-    start_time = start or datetime(2026, 1, 1, tzinfo=timezone.utc)
+    start_time = start or datetime(2026, 1, 1, tzinfo=UTC)
     rows: list[WatchEvent] = []
 
     for idx in range(events):
@@ -73,12 +73,15 @@ def generate_events(
         device_boost = 0.04 if user.device in {"mobile", "tv"} else 0.0
         click_probability = min(0.92, 0.05 + preference + recency_boost + device_boost)
         clicked = 1 if rng.random() < click_probability else 0
-        completion_probability = min(0.9, 0.12 + preference + (0.15 if video.duration_s <= 180 else 0.0))
+        short_video_boost = 0.15 if video.duration_s <= 180 else 0.0
+        completion_probability = min(0.9, 0.12 + preference + short_video_boost)
         completed = 1 if clicked and rng.random() < completion_probability else 0
         watch_time = 0
         if clicked:
             base_watch = int(video.duration_s * rng.uniform(0.05, 0.55))
-            watch_time = video.duration_s if completed else min(video.duration_s, max(3, base_watch))
+            watch_time = (
+                video.duration_s if completed else min(video.duration_s, max(3, base_watch))
+            )
         rows.append(
             WatchEvent(
                 event_id=f"event_{idx:08d}",

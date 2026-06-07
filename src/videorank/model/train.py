@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from videorank.features.offline import (
@@ -18,7 +18,11 @@ from videorank.model.metrics import auc_score, brier_score, grouped_by_user, ndc
 from videorank.model.ranker import SimpleLogisticRanker
 
 
-def train_from_events(events_path: Path, output_dir: Path, model_version: str | None = None) -> dict[str, float]:
+def train_from_events(
+    events_path: Path,
+    output_dir: Path,
+    model_version: str | None = None,
+) -> dict[str, float]:
     events = read_events(events_path)
     train_events, eval_events = temporal_train_eval_split(events)
     train_examples = build_training_examples(train_events)
@@ -49,14 +53,20 @@ def train_from_events(events_path: Path, output_dir: Path, model_version: str | 
         output_dir / "model.json",
         extra={
             "model_version": version,
-            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "trained_at": datetime.now(UTC).isoformat(),
             "feature_names": FEATURE_NAMES,
             "metrics": metrics,
             "catalog": catalog,
         },
     )
-    write_jsonl((example.to_dict() for example in train_examples), output_dir / "training_examples.jsonl")
-    (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
+    write_jsonl(
+        (example.to_dict() for example in train_examples),
+        output_dir / "training_examples.jsonl",
+    )
+    (output_dir / "metrics.json").write_text(
+        json.dumps(metrics, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     write_model_card(output_dir / "MODEL_CARD.md", version, metrics)
     return metrics
 
@@ -100,4 +110,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import math
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 FEATURE_NAMES = [
     "global_ctr",
@@ -142,9 +143,12 @@ def build_video_catalog(events: list[dict[str, Any]], top_n: int = 200) -> list[
         row["ctr"] = _ratio(row["clicks"], impressions)
         row["positive_rate"] = _ratio(row["positive_labels"], impressions)
         catalog.append(row)
-    return sorted(catalog, key=lambda row: (row["positive_rate"], row["impressions"]), reverse=True)[:top_n]
+    return sorted(
+        catalog,
+        key=lambda row: (row["positive_rate"], row["impressions"]),
+        reverse=True,
+    )[:top_n]
 
 
 def parse_timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
-

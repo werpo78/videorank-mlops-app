@@ -8,7 +8,9 @@ def compile_pipeline(output: Path) -> None:
     try:
         from kfp import compiler, dsl
     except ImportError as exc:
-        raise SystemExit("kfp is not installed. Install with `pip install -e .[pipelines]`.") from exc
+        raise SystemExit(
+            "kfp is not installed. Install with `pip install -e .[pipelines]`."
+        ) from exc
 
     @dsl.component(base_image="python:3.11-slim")
     def ingest_events(seed: int, output_path: dsl.OutputPath(str)) -> None:
@@ -18,7 +20,8 @@ def compile_pipeline(output: Path) -> None:
         rng = random.Random(seed)
         with open(output_path, "w", encoding="utf-8") as handle:
             for index in range(100):
-                handle.write(json.dumps({"event_id": index, "clicked": int(rng.random() > 0.8)}) + "\n")
+                row = {"event_id": index, "clicked": int(rng.random() > 0.8)}
+                handle.write(json.dumps(row) + "\n")
 
     @dsl.component(base_image="python:3.11-slim")
     def train_model(events_path: dsl.InputPath(str), metrics_path: dsl.OutputPath(str)) -> None:
@@ -52,7 +55,11 @@ def compile_pipeline(output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compile the KFP v2 pipeline.")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/pipelines/videorank_training.yaml"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("artifacts/pipelines/videorank_training.yaml"),
+    )
     args = parser.parse_args()
     compile_pipeline(args.output)
     print(f"compiled pipeline to {args.output}")
@@ -60,4 +67,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

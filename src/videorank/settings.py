@@ -15,7 +15,7 @@ class Settings:
     feedback_log_local_path: str
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "videorank-mlops-dev")
         dataset = os.getenv("VIDEORANK_BQ_DATASET", "videorank")
         return cls(

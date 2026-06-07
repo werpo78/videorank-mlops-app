@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -105,7 +104,7 @@ def create_app() -> FastAPI:
             "variant": variant,
             "model_version": result["model_version"],
             "limit": request.limit,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "recommendations": result["recommendations"],
         }
         prediction_logger.write(payload)
@@ -115,7 +114,7 @@ def create_app() -> FastAPI:
     def feedback(request: FeedbackRequest) -> dict[str, str]:
         FEEDBACK.labels(event_type=request.event_type).inc()
         payload = request.model_dump()
-        payload["timestamp"] = payload["timestamp"] or datetime.now(timezone.utc).isoformat()
+        payload["timestamp"] = payload["timestamp"] or datetime.now(UTC).isoformat()
         write_prediction_log(Path(settings.feedback_log_local_path), payload)
         return {"status": "accepted"}
 

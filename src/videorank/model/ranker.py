@@ -24,7 +24,7 @@ class SimpleLogisticRanker:
     bias: float = 0.0
 
     @classmethod
-    def fresh(cls, feature_names: list[str] | None = None) -> "SimpleLogisticRanker":
+    def fresh(cls, feature_names: list[str] | None = None) -> SimpleLogisticRanker:
         names = feature_names or list(FEATURE_NAMES)
         return cls(feature_names=names, weights=[0.0 for _ in names], bias=0.0)
 
@@ -35,7 +35,7 @@ class SimpleLogisticRanker:
         epochs: int = 120,
         learning_rate: float = 0.35,
         l2: float = 0.001,
-    ) -> "SimpleLogisticRanker":
+    ) -> SimpleLogisticRanker:
         if not features:
             raise ValueError("features must not be empty")
         for _ in range(epochs):
@@ -54,7 +54,10 @@ class SimpleLogisticRanker:
         return self
 
     def score_raw(self, features: list[float]) -> float:
-        return self.bias + sum(weight * value for weight, value in zip(self.weights, features, strict=True))
+        weighted_sum = sum(
+            weight * value for weight, value in zip(self.weights, features, strict=True)
+        )
+        return self.bias + weighted_sum
 
     def predict_proba(self, features: list[float]) -> float:
         return sigmoid(self.score_raw(features))
@@ -63,7 +66,7 @@ class SimpleLogisticRanker:
         return {"feature_names": self.feature_names, "weights": self.weights, "bias": self.bias}
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "SimpleLogisticRanker":
+    def from_dict(cls, payload: dict[str, Any]) -> SimpleLogisticRanker:
         return cls(
             feature_names=list(payload["feature_names"]),
             weights=[float(value) for value in payload["weights"]],
@@ -76,7 +79,6 @@ class SimpleLogisticRanker:
         path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: Path) -> tuple["SimpleLogisticRanker", dict[str, Any]]:
+    def load(cls, path: Path) -> tuple[SimpleLogisticRanker, dict[str, Any]]:
         payload = json.loads(path.read_text(encoding="utf-8"))
         return cls.from_dict(payload["ranker"]), payload
-

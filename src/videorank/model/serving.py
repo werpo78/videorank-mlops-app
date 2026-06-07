@@ -10,26 +10,31 @@ from videorank.model.ranker import SimpleLogisticRanker
 
 
 def stable_variant(user_id: str, experiment_id: str = "videorank-default") -> str:
-    digest = hashlib.sha256(f"{experiment_id}:{user_id}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{experiment_id}:{user_id}".encode()).hexdigest()
     return "ml_ranker" if int(digest[:8], 16) % 2 else "baseline_popularity"
 
 
 class RecommendationEngine:
-    def __init__(self, ranker: SimpleLogisticRanker, catalog: list[dict[str, Any]], model_version: str):
+    def __init__(
+        self,
+        ranker: SimpleLogisticRanker,
+        catalog: list[dict[str, Any]],
+        model_version: str,
+    ):
         self.ranker = ranker
         self.catalog = catalog
         self.model_version = model_version
         self.global_ctr = self._global_ctr()
 
     @classmethod
-    def from_model_path(cls, model_path: Path) -> "RecommendationEngine":
+    def from_model_path(cls, model_path: Path) -> RecommendationEngine:
         ranker, payload = SimpleLogisticRanker.load(model_path)
         catalog = payload.get("catalog", [])
         model_version = payload.get("model_version", "local")
         return cls(ranker=ranker, catalog=catalog, model_version=model_version)
 
     @classmethod
-    def fallback(cls) -> "RecommendationEngine":
+    def fallback(cls) -> RecommendationEngine:
         catalog = [
             {
                 "video_id": f"video_fallback_{index:03d}",
@@ -55,7 +60,11 @@ class RecommendationEngine:
         variant = stable_variant(user_id, experiment_id)
         candidates = self.catalog[: max(limit * 4, limit)]
         if variant == "baseline_popularity":
-            ranked = sorted(candidates, key=lambda row: (row.get("positive_rate", 0), row.get("impressions", 0)), reverse=True)
+            ranked = sorted(
+                candidates,
+                key=lambda row: (row.get("positive_rate", 0), row.get("impressions", 0)),
+                reverse=True,
+            )
         else:
             ranked = sorted(
                 candidates,
@@ -113,4 +122,3 @@ def write_prediction_log(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, sort_keys=True) + "\n")
-

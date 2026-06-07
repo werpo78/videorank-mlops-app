@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -48,7 +48,7 @@ class WatchEvent:
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
-        payload["timestamp"] = self.timestamp.astimezone(timezone.utc).isoformat()
+        payload["timestamp"] = self.timestamp.astimezone(UTC).isoformat()
         payload["label"] = self.label
         return payload
 

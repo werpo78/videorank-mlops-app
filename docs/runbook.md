@@ -94,6 +94,10 @@ For this lab, `CONFIG_REPO_TOKEN` can be a fine-grained PAT limited to
 prefer a GitHub App or bot identity that produces short-lived installation
 tokens with scoped repository permissions.
 
+If the promotion step fails with `Permission to ... denied`, recreate the token
+and confirm both repository access and `Contents: Read and write`; checkout can
+succeed with weaker permissions while branch push still fails.
+
 ## Secret Ownership
 
 - CI/CD secrets: GitHub Actions repository or environment secrets.
