@@ -16,6 +16,7 @@
 - Workload Identity Federation best practices: https://cloud.google.com/iam/docs/best-practices-for-using-workload-identity-federation
 - Deployment pipeline service accounts: https://cloud.google.com/iam/docs/best-practices-for-using-service-accounts-in-deployment-pipelines
 - Cloud Run service identity: https://cloud.google.com/run/docs/securing/service-identity
+- Cloud Run container runtime contract: https://cloud.google.com/run/docs/container-contract
 - Cloud Run known issues: https://cloud.google.com/run/docs/known-issues
 - BigQuery cost best practices: https://cloud.google.com/bigquery/docs/best-practices-costs
 - Terraform on Google Cloud best practices: https://cloud.google.com/docs/terraform/best-practices-for-terraform
@@ -31,6 +32,8 @@
 
 ## CI/CD Et Packaging
 
+- GitHub Actions secrets: https://docs.github.com/en/actions/concepts/security/secrets
+- GitHub App authentication: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app
 - GitHub OIDC with GCP: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-google-cloud-platform
 - Dockerfile best practices: https://docs.docker.com/build/building/best-practices/
 - Helm chart best practices: https://helm.sh/docs/chart_best_practices/

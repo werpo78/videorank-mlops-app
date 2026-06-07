@@ -275,10 +275,27 @@ needed.
 
 Q: How would you handle cross-repo credentials?
 
-A: For the lab, a fine-grained PAT limited to the config repo is acceptable. In
-production, I prefer a GitHub App or bot identity with scoped permissions.
+A: The secret belongs in the app repo Actions secrets, because that workflow
+opens the promotion PR into the config repo. For the lab, a fine-grained PAT
+limited to `videorank-mlops-config` with contents and pull-request write is
+acceptable. In production, I prefer a GitHub App or bot identity with scoped,
+short-lived installation tokens.
+
+Q: Why not use the default `GITHUB_TOKEN`?
+
+A: The default token is scoped to the repository running the workflow. It is not
+the right identity for mutating a separate config repo unless repository access
+is deliberately granted through another mechanism.
 
 ## 9. Secrets And Security
+
+Q: Where do the different secret classes live?
+
+A: CI/CD secrets live in GitHub Actions secrets; GCP CI identity uses Workload
+Identity Federation instead of JSON keys; Kubernetes secrets are SOPS-encrypted
+in the config repo; runtime app secrets should come from Secret Manager or a
+Kubernetes secret integration. Local operator files such as `.gcloud/`,
+`terraform.tfvars` and state are ignored by Git.
 
 Q: Why is Kubernetes Secret base64 not enough?
 

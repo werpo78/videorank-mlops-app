@@ -61,17 +61,50 @@ terraform plan
 terraform apply
 ```
 
-## GitHub OIDC Secrets
+## GitHub Actions Secrets
 
-After Terraform, set app repo secrets:
+All GitHub Actions secrets live in the app repo, because the app repo workflow is
+the actor that builds, pushes and opens the promotion PR.
 
-- `GCP_PROJECT_ID`
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`
-- `GCP_CI_SERVICE_ACCOUNT`
-- `GCP_RUNTIME_SERVICE_ACCOUNT`
-- `CONFIG_REPO_TOKEN` for opening promotion PRs into the config repo
+- `GCP_PROJECT_ID`: project target for CI.
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: OIDC provider resource created by Terraform.
+- `GCP_CI_SERVICE_ACCOUNT`: service account impersonated by GitHub Actions.
+- `GCP_RUNTIME_SERVICE_ACCOUNT`: Cloud Run runtime service account.
+- `CONFIG_REPO_TOKEN`: token used only to checkout and open PRs in
+  `videorank-mlops-config`.
 
-Production note: use a GitHub App instead of a PAT for cross-repo promotion.
+Set non-sensitive GCP values with:
+
+```bash
+gh secret set GCP_PROJECT_ID --repo werpo78/videorank-mlops-app --body videorank-mlops-werpo78
+gh secret set GCP_WORKLOAD_IDENTITY_PROVIDER --repo werpo78/videorank-mlops-app --body projects/57648357123/locations/global/workloadIdentityPools/github-actions/providers/github
+gh secret set GCP_CI_SERVICE_ACCOUNT --repo werpo78/videorank-mlops-app --body videorank-ci@videorank-mlops-werpo78.iam.gserviceaccount.com
+gh secret set GCP_RUNTIME_SERVICE_ACCOUNT --repo werpo78/videorank-mlops-app --body videorank-run@videorank-mlops-werpo78.iam.gserviceaccount.com
+```
+
+Set the cross-repo token without putting it in shell history or chat:
+
+```bash
+gh secret set CONFIG_REPO_TOKEN --repo werpo78/videorank-mlops-app
+```
+
+For this lab, `CONFIG_REPO_TOKEN` can be a fine-grained PAT limited to
+`werpo78/videorank-mlops-config` with `Contents: Read and write` and
+`Pull requests: Read and write`. Give it a short expiration. In production,
+prefer a GitHub App or bot identity that produces short-lived installation
+tokens with scoped repository permissions.
+
+## Secret Ownership
+
+- CI/CD secrets: GitHub Actions repository or environment secrets.
+- GCP CI identity: Workload Identity Federation, not JSON keys.
+- Kubernetes GitOps secrets: SOPS-encrypted manifests in the config repo.
+- Lab SOPS backend: Age, because it is quick and local.
+- Production SOPS backend: GCP KMS with IAM and audit logs.
+- Runtime application secrets: Secret Manager for Cloud Run or SOPS/External
+  Secrets for Kubernetes.
+- Local operator state: `.gcloud/`, `terraform.tfvars`, `terraform.tfstate` and
+  ADC files are ignored by Git.
 
 ## Flux Lab
 
