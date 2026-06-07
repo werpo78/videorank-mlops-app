@@ -137,7 +137,7 @@ PROJECT_ID=<project> ./scripts/teardown_gke_lab.sh
 
 Bad model:
 
-1. Check current digest in `videorank-mlops-config/apps/videorank-api/dev/values.yaml`.
+1. Check current digest in `videorank-mlops-config/apps/videorank-api/overlays/dev/values.yaml`.
 2. Revert the promotion commit.
 3. Let Flux reconcile.
 4. Compare prediction logs and model metrics.

@@ -252,6 +252,39 @@ Q: How do you rollback?
 A: Revert the config repo commit that changed the image digest or manifest.
 Flux applies the previous desired state.
 
+
+Q: Why use Kustomize base + overlays in the config repo?
+
+A: The base keeps the reusable Kubernetes contract, while overlays isolate
+environment-specific choices such as namespace, labels, annotations, generated
+values and patches. It avoids copying manifests across environments and makes
+GitOps reviews smaller.
+
+Q: Why use `patches:` instead of older patch fields?
+
+A: `patches:` is the current unified Kustomize field. It supports strategic
+merge and JSON6902-style targeting, so the overlay can express environment
+differences without replacing the base manifest.
+
+Q: Why keep the `configMapGenerator` hash?
+
+A: The hash changes when the values file changes, making configuration updates
+visible as a new object name. Disabling it hides config changes behind a stable
+name and can make rollout behavior harder to reason about.
+
+Q: Why add a Kustomize `nameReference` for `HelmRelease.valuesFrom`?
+
+A: `HelmRelease` is a Flux CRD, so Kustomize does not automatically know that
+`spec.valuesFrom[].name` points to a `ConfigMap`. The custom transformer tells
+Kustomize to rewrite that field to the generated hashed name.
+
+Q: Why no `namePrefix` for the dev API release?
+
+A: The environment is already isolated by the `videorank-dev` namespace and
+Flux health checks use a stable `HelmRelease` name. Prefixes are useful when
+multiple variants share a namespace, but here they add little value and more
+operational churn.
+
 ## 8. Promotion App Repo To Config Repo
 
 Q: Why promote by pull request?

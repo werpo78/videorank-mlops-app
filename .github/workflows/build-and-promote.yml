@@ -12,6 +12,7 @@ env:
   REGION: europe-west1
   IMAGE_NAME: videorank-api
   CONFIG_REPO: videorank-mlops-config
+  CONFIG_VALUES_PATH: apps/videorank-api/overlays/dev/values.yaml
 
 jobs:
   build-push-promote:
@@ -82,9 +83,10 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          import os
           from pathlib import Path
           image = "${{ steps.image.outputs.image }}"
-          path = Path("apps/videorank-api/dev/values.yaml")
+          path = Path(os.environ["CONFIG_VALUES_PATH"])
           text = path.read_text(encoding="utf-8")
           lines = []
           for line in text.splitlines():

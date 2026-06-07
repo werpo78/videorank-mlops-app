@@ -9,6 +9,8 @@
 - Flux secrets and SOPS: https://fluxcd.io/flux/security/secrets-management/
 - Flux multi-tenancy: https://fluxcd.io/flux/installation/configuration/multitenancy/
 - OpenGitOps principles: https://opengitops.dev/
+- Kustomize official docs: https://kubectl.docs.kubernetes.io/guides/
+- Kustomize guide by Stephane Robert: https://blog.stephane-robert.info/docs/conteneurs/orchestrateurs/outils/kustomize/
 
 ## GCP MLOps
 
