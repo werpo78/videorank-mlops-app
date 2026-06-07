@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "videorank-mlops"
+version = "0.1.0"
+description = "Production-oriented MLOps interview project for video recommendation on GCP."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.8",
+  "prometheus-client>=0.20",
+  "google-cloud-bigquery>=3.25",
+  "google-cloud-storage>=2.18",
+]
+
+[project.optional-dependencies]
+ml = [
+  "numpy>=2.0",
+  "pandas>=2.2",
+  "scikit-learn>=1.5",
+  "joblib>=1.4",
+]
+pipelines = [
+  "apache-beam[gcp]>=2.59",
+  "kfp>=2.8",
+  "google-cloud-aiplatform>=1.70",
+]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.7",
+  "httpx>=0.27",
+  "mypy>=1.11",
+]
+
+[project.scripts]
+videorank-generate = "videorank.data.generate:main"
+videorank-train = "videorank.model.train:main"
+videorank-serve = "videorank.api.app:main"
+videorank-drift = "videorank.monitoring.drift:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+

@@ -1,0 +1,99 @@
+name: build-and-promote
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: europe-west1
+  IMAGE_NAME: videorank-api
+  CONFIG_REPO: videorank-mlops-config
+
+jobs:
+  build-push-promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_CI_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push immutable image
+        id: image
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/videorank/${IMAGE_NAME}:${GITHUB_SHA}"
+          docker build -t "${IMAGE}" .
+          docker push "${IMAGE}"
+          DIGEST="$(gcloud artifacts docker images describe "${IMAGE}" --format='value(image_summary.digest)')"
+          echo "image=${REGION}-docker.pkg.dev/${PROJECT_ID}/videorank/${IMAGE_NAME}@${DIGEST}" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy Cloud Run dev service
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          gcloud run deploy videorank-api \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${{ steps.image.outputs.image }}" \
+            --service-account="${{ secrets.GCP_RUNTIME_SERVICE_ACCOUNT }}" \
+            --set-env-vars="VIDEORANK_ENV=dev" \
+            --quiet
+
+      - name: Checkout config repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ env.CONFIG_REPO }}
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+          path: config-repo
+
+      - name: Update GitOps image digest
+        working-directory: config-repo
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          image = "${{ steps.image.outputs.image }}"
+          path = Path("apps/videorank-api/dev/values.yaml")
+          text = path.read_text(encoding="utf-8")
+          lines = []
+          for line in text.splitlines():
+              if line.strip().startswith("repository:"):
+                  repository, digest = image.split("@", 1)
+                  lines.append(f"  repository: {repository}")
+              elif line.strip().startswith("digest:"):
+                  repository, digest = image.split("@", 1)
+                  lines.append(f"  digest: {digest}")
+              else:
+                  lines.append(line)
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Open promotion pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: config-repo
+          token: ${{ secrets.CONFIG_REPO_TOKEN }}
+          branch: promote/videorank-${{ github.sha }}
+          title: "Promote videorank-api ${{ github.sha }}"
+          body: |
+            Promote immutable image built from app commit `${{ github.sha }}`.
+
+            Image: `${{ steps.image.outputs.image }}`
+          commit-message: "Promote videorank-api ${{ github.sha }}"
