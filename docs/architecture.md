@@ -18,173 +18,206 @@ reconciles runtime state. GitHub Actions does not mutate the cluster directly.
 ## 1. System Boundaries
 
 ```mermaid
-flowchart LR
-    AppRepo["App repo<br/>code, tests, Docker, CT, Terraform"]
-    ConfigRepo["Config repo<br/>Kubernetes desired state"]
-    GCP["GCP<br/>Vertex AI, BigQuery, GCS, Artifact Registry, Cloud Run"]
-    GKE["GKE Autopilot lab<br/>Flux, HelmRelease, KubeRay"]
-    Observability["Monitoring data<br/>metrics, logs, feedback, drift"]
+flowchart TB
+    subgraph App["videorank-mlops-app"]
+        Code["Python code<br/>FastAPI, training, KFP"]
+        CI["GitHub Actions<br/>CI, image build, CT submit"]
+        TF["Terraform<br/>GCP foundation"]
+    end
 
-    AppRepo -->|build image| GCP
-    AppRepo -->|submit KFP PipelineJob| GCP
-    AppRepo -->|promotion PR| ConfigRepo
-    ConfigRepo -->|pulled by Flux| GKE
-    GCP -->|image + model artifacts| GKE
-    GCP -->|Cloud Run serving| Observability
-    GKE -->|GitOps lab serving| Observability
+    subgraph GCP["GCP project"]
+        AR["Artifact Registry<br/>container images"]
+        Vertex["Vertex AI<br/>Pipelines, Datasets, Experiments, Model Registry"]
+        Storage["GCS + BigQuery<br/>artifacts, features, logs"]
+        Run["Cloud Run<br/>permanent API"]
+    end
+
+    subgraph Config["videorank-mlops-config"]
+        Desired["Kubernetes desired state<br/>HelmRelease, values, Flux CRDs"]
+        PromoPR["Promotion PRs<br/>image digest or model URI"]
+    end
+
+    subgraph GKE["Ephemeral GKE lab"]
+        Flux["Flux controllers"]
+        ApiPod["VideoRank API on Kubernetes"]
+        Ray["KubeRay RayJob"]
+    end
+
+    Code -->|"1. PR tested by CI"| CI
+    CI -->|"2. push image by SHA + sortable tag"| AR
+    CI -->|"3. submit managed CT run"| Vertex
+    TF -->|"4a. create registry"| AR
+    TF -->|"4b. create storage and datasets"| Storage
+    TF -->|"4c. create Cloud Run service"| Run
+    Vertex -->|"5. write model artifacts + metrics"| Storage
+    CI -->|"6. open runtime promotion PR"| PromoPR
+    PromoPR -->|"7. merge updates desired state"| Desired
+    Desired -->|"8. Flux pulls from Git"| Flux
+    Flux -->|"9. applies HelmRelease/jobs"| ApiPod
+    Flux -->|"10. applies RayJob"| Ray
+    AR -->|"image digest"| Run
+    AR -->|"image digest"| ApiPod
+    Storage -->|"model URI + logs"| Run
+    Storage -->|"model URI + logs"| ApiPod
 ```
 
-This diagram is about ownership. The app repo creates artifacts and managed GCP
-resources. The config repo owns Kubernetes runtime state. GCP hosts the managed
-ML platform and permanent low-cost serving. GKE is an ephemeral lab used to
-practice Flux, Helm and KubeRay.
+Read it left to right by responsibility: the app repo produces artifacts, GCP
+stores and runs managed services, the config repo declares Kubernetes runtime
+state, and Flux applies that state inside the GKE lab.
 
 ## 2. Flux Bootstrap
 
 ```mermaid
 sequenceDiagram
-    participant Operator
-    participant GKE
-    participant FluxCLI as flux CLI
-    participant GitHub as config repo
-    participant Controllers as Flux controllers
+    autonumber
+    participant Operator as Operator
+    participant GKE as GKE cluster
+    participant CLI as flux CLI
+    participant GitHub as GitHub config repo
+    participant Flux as Flux controllers
 
-    Operator->>GKE: gcloud get-credentials
-    Operator->>FluxCLI: flux check --pre
-    Operator->>FluxCLI: flux bootstrap github --path clusters/dev
-    FluxCLI->>GitHub: commit gotk components and sync manifests
-    FluxCLI->>GKE: install Flux controllers
-    Controllers->>GitHub: pull clusters/dev
-    Controllers->>GKE: reconcile namespaces, Helm releases, jobs
+    Operator->>GKE: Select cluster context with gcloud
+    Operator->>CLI: Run flux check --pre
+    CLI-->>Operator: Confirm cluster prerequisites
+    Operator->>CLI: Run flux bootstrap github
+    CLI->>GitHub: Commit gotk components under clusters/dev
+    CLI->>GKE: Install Flux controllers
+    CLI->>GitHub: Create read-write deploy key
+    Flux->>GitHub: Pull clusters/dev desired state
+    Flux->>GKE: Reconcile namespaces, apps, controllers, jobs
 ```
 
-Bootstrap is idempotent. The lab explicitly installs the optional
-`image-reflector-controller` and `image-automation-controller` because image
-automation CRDs are declared in the config repo.
+Bootstrap is idempotent. `--components-extra` installs image automation
+controllers, and `--read-write-key=true` is required because the image automation
+lab pushes a staging branch back to Git.
 
-## 3. Reconciliation Loop
+## 3. Flux Reconciliation Loop
 
 ```mermaid
-flowchart LR
-    Git["Desired state<br/>config repo"] --> Source["source-controller<br/>GitRepository artifact"]
-    Source --> Kustomize["kustomize-controller<br/>Kustomization paths"]
-    Kustomize --> Helm["helm-controller<br/>HelmRelease"]
-    Helm --> Live["Live state<br/>Kubernetes objects"]
-    Live --> Drift{"Drift?"}
-    Drift -->|yes| Kustomize
-    Drift -->|no| Sleep["wait interval or webhook"]
-    Sleep --> Source
+flowchart TD
+    A["1. GitRepository<br/>source-controller fetches config repo"] --> B["2. Artifact stored<br/>source revision is recorded"]
+    B --> C["3. Kustomization<br/>kustomize-controller builds target path"]
+    C --> D["4. Apply manifests<br/>prune removed resources"]
+    D --> E["5. Health checks<br/>wait for HelmRelease or CR status"]
+    E --> F{"6. Live state matches Git?"}
+    F -->|"yes: wait interval or webhook"| A
+    F -->|"no: reconcile drift"| C
 ```
 
-Flux is a pull-based control loop: observe source, compare desired state to live
-state, act, then repeat. Manual cluster changes are temporary diagnostics; the
-durable fix is a Git change.
+This is the core GitOps answer: Git is the desired state, Kubernetes is the live
+state, and Flux repeatedly converges live state back to Git.
 
 ## 4. HelmRelease Mechanism
 
 ```mermaid
-flowchart TB
-    Values["overlay values.yaml"]
-    Generator["Kustomize configMapGenerator<br/>hashed ConfigMap"]
-    NameReference["kustomizeconfig.yaml<br/>rewrites valuesFrom name"]
-    HR["HelmRelease videorank-api<br/>chart from config repo"]
-    HelmController["helm-controller"]
-    Deployment["Deployment + Service + ServiceAccount"]
-
-    Values --> Generator
-    Generator --> NameReference
-    NameReference --> HR
-    HR --> HelmController
-    HelmController --> Deployment
+flowchart TD
+    A["1. apps/videorank-api/overlays/dev/values.yaml<br/>environment values"] --> B["2. configMapGenerator<br/>creates hashed values ConfigMap"]
+    B --> C["3. kustomizeconfig.yaml<br/>rewrites HelmRelease valuesFrom name"]
+    C --> D["4. HelmRelease<br/>chart path + generated values ConfigMap"]
+    D --> E["5. helm-controller<br/>renders chart and applies release"]
+    E --> F["6. Kubernetes resources<br/>Deployment, Service, ServiceAccount"]
+    E --> G["7. remediation policy<br/>retry install, rollback failed upgrade"]
 ```
 
-The chart is stored in Git because it is a small in-house chart. The
-`HelmRelease` has explicit install retries, upgrade retries, rollback strategy
-and timeout. The values `ConfigMap` keeps its hash so Flux sees config changes
-cleanly.
+The values `ConfigMap` keeps its hash. That makes values changes visible as new
+desired state while the custom Kustomize name reference keeps
+`HelmRelease.spec.valuesFrom[].name` correct.
 
 ## 5. Application Image Promotion
 
 ```mermaid
 sequenceDiagram
-    participant App as app repo CI
-    participant AR as Artifact Registry
-    participant PR as config repo PR
-    participant Reviewer
-    participant Flux
-    participant GKE
+    autonumber
+    participant CI as app repo CI
+    participant Registry as Artifact Registry
+    participant Config as config repo PR
+    participant Human as Reviewer
+    participant Flux as Flux
+    participant Cluster as GKE lab
 
-    App->>AR: push SHA tag and sortable tag
-    App->>AR: resolve immutable digest
-    App->>PR: update repository, tag, digest in values.yaml
-    Reviewer->>PR: review and merge
-    Flux->>PR: pull merged desired state
-    Flux->>GKE: deploy image by digest
+    CI->>Registry: Build and push image with full Git SHA tag
+    CI->>Registry: Also push sortable tag main-run-shortsha
+    CI->>Registry: Resolve immutable image digest
+    CI->>Config: Open PR updating repository, tag and digest
+    Human->>Config: Review and merge PR
+    Flux->>Config: Pull new config repo revision
+    Flux->>Cluster: Upgrade HelmRelease using image digest
 ```
 
-The sortable tag is for Flux image policy discovery. The digest is what pins the
-exact artifact. This keeps the production answer simple: tags are selectors,
-digests are deployment identity.
+The key interview phrase: tags help selection and traceability; the digest is
+the immutable deployment identity.
 
 ## 6. Flux Image Automation Lab
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant CI as app CI
-    participant AR as Artifact Registry
-    participant Reflector as image-reflector-controller
+    participant Registry as Artifact Registry
+    participant Repo as ImageRepository
     participant Policy as ImagePolicy
-    participant Automation as image-automation-controller
+    participant Auto as ImageUpdateAutomation
     participant Branch as flux/image-updates/dev
-    participant Main as main
+    participant Main as config repo main
 
-    CI->>AR: push main-run-shortsha tag
-    Reflector->>AR: scan videorank-api tags with provider=gcp
-    Policy->>Policy: choose highest run number and reflect digest
-    Automation->>Branch: commit marker updates using $imagepolicy
-    Branch->>Main: human opens PR
-    Main->>Main: merge promotes desired state
+    CI->>Registry: Push main-run-shortsha tag
+    Repo->>Registry: Scan tags with provider=gcp
+    Repo-->>Policy: Expose scanned tag metadata
+    Policy->>Policy: Filter main-* tags and choose highest run number
+    Policy-->>Auto: Latest image name, tag and digest
+    Auto->>Branch: Commit values.yaml marker updates
+    Branch->>Main: Human opens and merges PR
+    Main-->>Auto: Next reconcile sees no pending change
 ```
 
-The automation does not push directly to `main`. It pushes to a staging branch
-so image updates remain reviewable. In a real production setup, a bot or policy
-engine can open the PR automatically, but the merge is still an auditable
-promotion event.
+This is intentionally not direct-to-main automation. Flux prepares an update
+branch, but promotion remains a reviewed Git change.
 
 ## 7. Continuous Training And Model Promotion
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant Git as app repo
     participant Vertex as Vertex AI Pipelines
-    participant Registry as Model Registry
+    participant Data as BigQuery and GCS
+    participant Registry as Vertex Model Registry
     participant Human as ML/platform reviewer
     participant Promote as promote-model workflow
     participant Config as config repo PR
-    participant Serving as Cloud Run or GKE API
+    participant API as Cloud Run or GKE API
 
-    Git->>Vertex: submit KFP v2 PipelineJob
-    Vertex->>Vertex: prepare data, features, train, evaluate
-    Vertex->>Registry: register candidate with metrics and lineage
-    Human->>Registry: review candidate
-    Human->>Promote: provide model URI and lineage
-    Promote->>Config: update VIDEORANK_MODEL_URI and metadata
-    Config->>Serving: merge makes new runtime model config desired
+    Git->>Vertex: Submit KFP v2 PipelineJob
+    Vertex->>Data: Read dataset and write pipeline artifacts
+    Vertex->>Vertex: Train and evaluate candidate model
+    Vertex->>Registry: Register candidate with metrics and lineage
+    Human->>Registry: Review quality gate and metadata
+    Human->>Promote: Provide model URI, version and lineage
+    Promote->>Config: Open PR updating VIDEORANK_MODEL_URI fields
+    Config->>API: Merge changes runtime model config
+    API->>Data: Load promoted gs:// model artifact at startup
 ```
 
-Continuous Training creates a candidate. Promotion is a separate control with
-review, lineage and rollback. The API can load a promoted `gs://` model artifact
-without rebuilding the serving image.
+Continuous Training creates a candidate. Promotion is a separate decision with
+review, lineage and rollback. The serving image does not need to be rebuilt for
+every model candidate.
 
 ## 8. Rollback
 
 ```mermaid
-flowchart LR
-    Incident["Bad rollout<br/>image or model"] --> Revert["git revert config PR"]
-    Revert --> Main["config repo main"]
-    Main --> Flux["Flux reconcile"]
-    Flux --> Previous["previous digest or model URI"]
-    Previous --> Verify["check /readyz, metrics, logs"]
+sequenceDiagram
+    autonumber
+    participant OnCall as Operator
+    participant Config as config repo
+    participant Flux as Flux
+    participant Runtime as Cloud Run or GKE API
+    participant Obs as Metrics and logs
+
+    OnCall->>Obs: Detect bad image or model rollout
+    OnCall->>Config: Revert the promotion commit
+    Flux->>Config: Pull reverted desired state
+    Flux->>Runtime: Restore previous digest or model URI
+    OnCall->>Obs: Verify /readyz, errors, fallback rate and business metrics
 ```
 
 Rollback does not require rebuilding. Git history records both the bad
