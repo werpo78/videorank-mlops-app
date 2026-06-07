@@ -11,6 +11,8 @@ class Settings:
     environment: str
     model_path: str
     prediction_log_table: str | None
+    prediction_log_local_path: str
+    feedback_log_local_path: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -27,5 +29,13 @@ class Settings:
             prediction_log_table=os.getenv(
                 "VIDEORANK_PREDICTION_LOG_TABLE",
                 f"{project_id}.{dataset}.prediction_logs",
+            ),
+            prediction_log_local_path=os.getenv(
+                "VIDEORANK_PREDICTION_LOG_LOCAL_PATH",
+                "/tmp/videorank/prediction_logs.jsonl",
+            ),
+            feedback_log_local_path=os.getenv(
+                "VIDEORANK_FEEDBACK_LOG_LOCAL_PATH",
+                "/tmp/videorank/feedback_logs.jsonl",
             ),
         )

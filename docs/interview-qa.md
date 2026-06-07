@@ -192,6 +192,12 @@ Q: How do you manage cold starts?
 A: Small image, lazy/fast model loading, appropriate concurrency, and min
 instances only if the SLO requires paying for them.
 
+Q: Why write local fallback logs under `/tmp` on Cloud Run?
+
+A: Cloud Run containers should not rely on writing inside the application
+directory, especially when running as non-root. `/tmp` is the writable ephemeral
+filesystem for short-lived buffers; durable prediction logs go to BigQuery.
+
 Q: Which metrics matter?
 
 A: Latency p95, error rate, throughput, fallback rate, model version, score

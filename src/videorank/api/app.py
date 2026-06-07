@@ -64,7 +64,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="VideoRank Recommendation API", version="0.1.0")
     prediction_logger = PredictionLogger(
         table_id=settings.prediction_log_table,
-        local_path=Path("artifacts/prediction_logs.jsonl"),
+        local_path=Path(settings.prediction_log_local_path),
     )
 
     def health_payload() -> dict[str, str]:
@@ -116,7 +116,7 @@ def create_app() -> FastAPI:
         FEEDBACK.labels(event_type=request.event_type).inc()
         payload = request.model_dump()
         payload["timestamp"] = payload["timestamp"] or datetime.now(timezone.utc).isoformat()
-        write_prediction_log(Path("artifacts/feedback_logs.jsonl"), payload)
+        write_prediction_log(Path(settings.feedback_log_local_path), payload)
         return {"status": "accepted"}
 
     return app

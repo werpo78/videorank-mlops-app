@@ -47,6 +47,10 @@ Cloud Run public URL note: Google documents some paths ending in `z` as
 reserved. The API still exposes `/healthz` for Kubernetes probes, but use
 `/health` on the public `run.app` URL and `/readyz` for model readiness.
 
+Cloud Run filesystem note: the API runs as a non-root user. Local fallback logs
+are written under `/tmp/videorank`, while durable prediction logs should go to
+BigQuery when `VIDEORANK_ENABLE_BIGQUERY_LOGGING=true`.
+
 Terraform:
 
 ```bash
