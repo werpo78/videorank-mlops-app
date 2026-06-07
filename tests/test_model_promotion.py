@@ -22,7 +22,13 @@ class ModelPromotionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             values_path = Path(tmpdir) / "values.yaml"
             values_path.write_text(
-                yaml.safe_dump({"env": {"VIDEORANK_ENV": "dev"}}, sort_keys=False),
+                '''image:
+  repository: repo # {"$imagepolicy": "flux-system:videorank-api:name"}
+  tag: main-1-abc1234 # {"$imagepolicy": "flux-system:videorank-api:tag"}
+  digest: sha256:old # {"$imagepolicy": "flux-system:videorank-api:digest"}
+env:
+  VIDEORANK_ENV: dev
+''',
                 encoding="utf-8",
             )
             args = argparse.Namespace(
@@ -36,7 +42,10 @@ class ModelPromotionTests(unittest.TestCase):
                 promoted_at="2026-06-07T00:00:00+00:00",
             )
             module.update_values(values_path, args)
-            values = yaml.safe_load(values_path.read_text(encoding="utf-8"))
+            text = values_path.read_text(encoding="utf-8")
+            values = yaml.safe_load(text)
+
+        self.assertIn('{"$imagepolicy": "flux-system:videorank-api:digest"}', text)
 
         env = values["env"]
         self.assertEqual(env["VIDEORANK_MODEL_URI"], "gs://bucket/path/model")

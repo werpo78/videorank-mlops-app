@@ -14,7 +14,12 @@ flux bootstrap github \
   --repository="${CONFIG_REPO}" \
   --branch=main \
   --path=clusters/dev \
+  --components-extra=image-reflector-controller,image-automation-controller \
+  --read-write-key=true \
   --personal \
   --private=true
 
 flux get all -A
+flux get image repository -A
+flux get image policy -A
+flux get image update -A

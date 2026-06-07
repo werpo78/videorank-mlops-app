@@ -51,9 +51,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install promotion dependencies
-        run: python -m pip install "PyYAML>=6.0"
-
       - name: Checkout config repo
         uses: actions/checkout@v4
         with:
@@ -73,7 +70,14 @@ jobs:
         run: |
           set -euo pipefail
           VALUES_PATH="config-repo/apps/videorank-api/overlays/${TARGET_ENV}/values.yaml"
-          python scripts/promote_model_to_config.py             --values-path "${VALUES_PATH}"             --model-artifact-uri "${MODEL_ARTIFACT_URI}"             --model-version "${MODEL_VERSION}"             --vertex-model-resource "${VERTEX_MODEL_RESOURCE}"             --git-sha "${MODEL_GIT_SHA}"             --data-snapshot-id "${DATA_SNAPSHOT_ID}"             --promotion-reason "${PROMOTION_REASON}"
+          python scripts/promote_model_to_config.py \
+            --values-path "${VALUES_PATH}" \
+            --model-artifact-uri "${MODEL_ARTIFACT_URI}" \
+            --model-version "${MODEL_VERSION}" \
+            --vertex-model-resource "${VERTEX_MODEL_RESOURCE}" \
+            --git-sha "${MODEL_GIT_SHA}" \
+            --data-snapshot-id "${DATA_SNAPSHOT_ID}" \
+            --promotion-reason "${PROMOTION_REASON}"
 
       - name: Open model promotion pull request
         uses: peter-evans/create-pull-request@v6

@@ -422,6 +422,49 @@ Q: How do you rollback?
 A: Revert the config repo commit that changed the image digest or manifest.
 Flux applies the previous desired state.
 
+Q: Which extra Flux controllers are needed for image automation?
+
+A: `image-reflector-controller` scans registries and stores tag metadata through
+`ImageRepository` and `ImagePolicy`. `image-automation-controller` uses that
+policy and `$imagepolicy` markers to write changes back to Git.
+
+Q: Why does Flux bootstrap use `--read-write-key=true` in the lab?
+
+A: A default deploy key is read-only. Image automation must push a branch back
+to the config repo, so the deploy key needs write access. In production I would
+limit this carefully and still push to a staging branch reviewed by PR.
+
+Q: Why are the CI image tags now `main-<run_number>-<short_sha>`?
+
+A: Flux image policies need sortable tags. A raw Git SHA is immutable but not
+chronologically sortable. The run number gives a monotonic ordering, while the
+short SHA keeps the tag traceable to code.
+
+Q: Why still deploy by digest if Flux can update tags?
+
+A: Tags are selection handles and can move. The digest identifies exact image
+content. Flux can use a tag policy to discover a candidate, but the values file
+pins the digest that Kubernetes actually runs.
+
+Q: Why does `ImageUpdateAutomation` push to `flux/image-updates/dev` instead of
+`main`?
+
+A: Direct pushes to `main` skip human review. The staging branch lets Flux
+prepare a candidate change, then a PR provides audit, approval and rollback
+history.
+
+Q: What are `$imagepolicy` markers?
+
+A: Comments in YAML that tell Flux which fields it is allowed to update. Here
+they annotate `repository`, `tag` and `digest` in the dev values file. Without
+the exact markers, image automation will not change the file.
+
+Q: How do you authenticate Flux image scanning against Artifact Registry?
+
+A: The `ImageRepository` uses `provider: gcp`. In production I would bind the
+Flux image reflector Kubernetes service account to a Google service account via
+GKE Workload Identity and grant Artifact Registry Reader on the repository.
+
 
 Q: Why use Kustomize base + overlays in the config repo?
 

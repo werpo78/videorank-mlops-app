@@ -6,6 +6,14 @@
 - Flux bootstrap GitHub: https://fluxcd.io/flux/installation/bootstrap/github/
 - Flux Kustomization: https://fluxcd.io/flux/components/kustomize/kustomizations/
 - Flux HelmRelease: https://fluxcd.io/flux/components/helm/helmreleases/
+- Stephane Robert Flux concepts: https://blog.stephane-robert.info/docs/pipeline-cicd/fluxcd/concepts/
+- Stephane Robert Flux installation: https://blog.stephane-robert.info/docs/pipeline-cicd/fluxcd/installation/
+- Stephane Robert Flux first application: https://blog.stephane-robert.info/docs/pipeline-cicd/fluxcd/premiere-application/
+- Stephane Robert Flux HelmRelease: https://blog.stephane-robert.info/docs/pipeline-cicd/fluxcd/helm/
+- Stephane Robert Flux image automation: https://blog.stephane-robert.info/docs/pipeline-cicd/fluxcd/image-automation/
+- Flux ImageRepository: https://fluxcd.io/flux/components/image/imagerepositories/
+- Flux ImagePolicy: https://fluxcd.io/flux/components/image/imagepolicies/
+- Flux ImageUpdateAutomation: https://fluxcd.io/flux/components/image/imageupdateautomations/
 - Flux secrets and SOPS: https://fluxcd.io/flux/security/secrets-management/
 - Flux multi-tenancy: https://fluxcd.io/flux/installation/configuration/multitenancy/
 - OpenGitOps principles: https://opengitops.dev/

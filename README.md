@@ -34,10 +34,16 @@ PYTHONPATH=src python -m unittest discover -s tests
 ## Production Flow
 
 1. Pull request in this app repo runs tests, lint, and image build.
-2. The image is pushed to Artifact Registry with the commit SHA and digest.
+2. The image is pushed to Artifact Registry with the commit SHA, a sortable
+   `main-<run_number>-<short_sha>` tag for Flux image policy, and an immutable
+   digest.
 3. CI opens a pull request in `videorank-mlops-config` to update the image digest.
 4. Merging the config PR promotes the artifact.
 5. Flux reconciles the Kubernetes cluster from the config repo.
+
+The config repo also contains a Flux image automation lab. It can scan Artifact
+Registry and push marker updates to `flux/image-updates/dev`, but production
+promotion still goes through PR review before `main`.
 
 Vertex AI follows a separate managed-GCP Continuous Training flow: pull requests
 compile and validate the Kubeflow Pipelines template, then `main`, the weekly

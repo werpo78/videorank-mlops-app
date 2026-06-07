@@ -53,11 +53,19 @@ jobs:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
-          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/videorank/${IMAGE_NAME}:${GITHUB_SHA}"
-          docker build -t "${IMAGE}" .
-          docker push "${IMAGE}"
-          DIGEST="$(gcloud artifacts docker images describe "${IMAGE}" --format='value(image_summary.digest)')"
-          echo "image=${REGION}-docker.pkg.dev/${PROJECT_ID}/videorank/${IMAGE_NAME}@${DIGEST}" >> "${GITHUB_OUTPUT}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          SORTABLE_TAG="main-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          REPOSITORY="${REGION}-docker.pkg.dev/${PROJECT_ID}/videorank/${IMAGE_NAME}"
+          IMAGE_SHA="${REPOSITORY}:${GITHUB_SHA}"
+          IMAGE_SORTABLE="${REPOSITORY}:${SORTABLE_TAG}"
+          docker build -t "${IMAGE_SHA}" -t "${IMAGE_SORTABLE}" .
+          docker push "${IMAGE_SHA}"
+          docker push "${IMAGE_SORTABLE}"
+          DIGEST="$(gcloud artifacts docker images describe "${IMAGE_SHA}" --format='value(image_summary.digest)')"
+          echo "repository=${REPOSITORY}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${SORTABLE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
+          echo "image=${REPOSITORY}@${DIGEST}" >> "${GITHUB_OUTPUT}"
 
       - name: Deploy Cloud Run dev service
         env:
@@ -80,25 +88,39 @@ jobs:
 
       - name: Update GitOps image digest
         working-directory: config-repo
+        env:
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           set -euo pipefail
           python - <<'PY'
           import os
           from pathlib import Path
-          image = "${{ steps.image.outputs.image }}"
+
           path = Path(os.environ["CONFIG_VALUES_PATH"])
-          text = path.read_text(encoding="utf-8")
-          lines = []
-          for line in text.splitlines():
-              if line.strip().startswith("repository:"):
-                  repository, digest = image.split("@", 1)
-                  lines.append(f"  repository: {repository}")
-              elif line.strip().startswith("digest:"):
-                  repository, digest = image.split("@", 1)
-                  lines.append(f"  digest: {digest}")
+          updates = {
+              "repository": os.environ["IMAGE_REPOSITORY"],
+              "tag": os.environ["IMAGE_TAG"],
+              "digest": os.environ["IMAGE_DIGEST"],
+          }
+
+          def replace_value(line: str, value: str) -> str:
+              prefix, sep, comment = line.partition("#")
+              indent = prefix[: len(prefix) - len(prefix.lstrip())]
+              key = prefix.strip().split(":", 1)[0]
+              suffix = f" # {comment.strip()}" if sep else ""
+              return f"{indent}{key}: {value}{suffix}"
+
+          rendered = []
+          for line in path.read_text(encoding="utf-8").splitlines():
+              stripped = line.strip()
+              key = stripped.split(":", 1)[0] if ":" in stripped else ""
+              if key in updates:
+                  rendered.append(replace_value(line, updates[key]))
               else:
-                  lines.append(line)
-          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                  rendered.append(line)
+          path.write_text("\n".join(rendered) + "\n", encoding="utf-8")
           PY
 
       - name: Open promotion pull request
@@ -112,4 +134,5 @@ jobs:
             Promote immutable image built from app commit `${{ github.sha }}`.
 
             Image: `${{ steps.image.outputs.image }}`
+            Sortable tag for Flux ImagePolicy: `${{ steps.image.outputs.tag }}`
           commit-message: "Promote videorank-api ${{ github.sha }}"

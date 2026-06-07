@@ -261,14 +261,61 @@ Install Flux CLI if needed:
 brew install fluxcd/tap/flux
 ```
 
-Create GKE lab cluster by enabling `enable_gke_lab = true` for Terraform, then:
+Create GKE lab cluster by enabling `enable_gke_lab = true` for Terraform, then
+bootstrap Flux with the optional image automation controllers:
 
 ```bash
 PROJECT_ID=<project> GITHUB_OWNER=<owner> ./scripts/bootstrap_flux_lab.sh
+```
+
+The script runs `flux check --pre` first, then `flux bootstrap github` with
+`--path=clusters/dev`,
+`--components-extra=image-reflector-controller,image-automation-controller` and
+`--read-write-key=true`. The write deploy key is needed only because the lab
+uses `ImageUpdateAutomation` to push a staging branch.
+
+Core diagnostics:
+
+```bash
 flux get all -A
-kubectl get helmreleases -A
+flux get kustomizations -A
+flux get helmreleases -A
 kubectl get rayjobs -A
 ```
+
+Image automation diagnostics:
+
+```bash
+flux get image repository -A
+flux get image policy -A
+flux get image update -A
+kubectl describe imagerepository videorank-api -n flux-system
+kubectl describe imagepolicy videorank-api -n flux-system
+kubectl logs -n flux-system deploy/image-reflector-controller --tail=100
+kubectl logs -n flux-system deploy/image-automation-controller --tail=100
+```
+
+Force reconciliation when testing:
+
+```bash
+flux reconcile source git flux-system
+flux reconcile kustomization image-automation -n flux-system
+flux reconcile image repository videorank-api -n flux-system
+flux reconcile image policy videorank-api -n flux-system
+flux reconcile image update videorank-api -n flux-system
+```
+
+Image automation pushes to `flux/image-updates/dev`, not `main`. Open a PR from
+that branch into `main` if you want to promote the discovered image. The chart
+still deploys by digest, so review the digest change before merge.
+
+If the lab was already bootstrapped with a read-only deploy key, delete/rotate
+the `flux-system` Git secret and rerun bootstrap with `--read-write-key=true`.
+
+For private Artifact Registry access, ensure the Flux image reflector identity
+can read `europe-west1-docker.pkg.dev/videorank-mlops-werpo78/videorank`.
+Preferred production approach: GKE Workload Identity plus Artifact Registry
+Reader on the specific repository. Lab fallback: suitable node scopes.
 
 Teardown immediately after the lab:
 
