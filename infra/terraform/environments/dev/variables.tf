@@ -22,9 +22,15 @@ variable "billing_account_id" {
 }
 
 variable "budget_amount_usd" {
-  description = "Budget alert threshold in USD."
+  description = "Budget alert threshold in the billing account currency."
   type        = number
   default     = 75
+}
+
+variable "budget_currency_code" {
+  description = "Billing account currency code."
+  type        = string
+  default     = "EUR"
 }
 
 variable "github_owner" {

@@ -33,6 +33,20 @@ REGION=europe-west1
 BILLING_ACCOUNT_ID=<billing-account> ./scripts/setup_gcp_project.sh
 ```
 
+Current lab values:
+
+- project: `videorank-mlops-werpo78`
+- region: `europe-west1`
+- artifact registry: `europe-west1-docker.pkg.dev/videorank-mlops-werpo78/videorank`
+- Cloud Run URL: `https://videorank-api-xzs2u6x3kq-ew.a.run.app`
+- WIF provider: `projects/57648357123/locations/global/workloadIdentityPools/github-actions/providers/github`
+- CI service account: `videorank-ci@videorank-mlops-werpo78.iam.gserviceaccount.com`
+- runtime service account: `videorank-run@videorank-mlops-werpo78.iam.gserviceaccount.com`
+
+Cloud Run public URL note: Google documents some paths ending in `z` as
+reserved. The API still exposes `/healthz` for Kubernetes probes, but use
+`/health` on the public `run.app` URL and `/readyz` for model readiness.
+
 Terraform:
 
 ```bash

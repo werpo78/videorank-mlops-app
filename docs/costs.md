@@ -11,7 +11,7 @@ services while avoiding accidental spend.
 - BigQuery tables are partitioned and clustered.
 - Artifact Registry has cleanup policies.
 - Cloud Storage has lifecycle rules.
-- Terraform budget alert defaults to 75 USD.
+- Terraform budget alert defaults to 75 EUR because the selected billing account is EUR.
 
 ## GKE Lab Rules
 
@@ -48,4 +48,3 @@ Kubernetes the default runtime for a small API.
 - Move older artifacts to Nearline after 30 days.
 - Delete lab artifacts after 90 days.
 - Keep model artifacts versioned, but cap retention in dev.
-

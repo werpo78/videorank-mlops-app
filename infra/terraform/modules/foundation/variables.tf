@@ -21,6 +21,11 @@ variable "budget_amount_usd" {
   default = 75
 }
 
+variable "budget_currency_code" {
+  type    = string
+  default = "EUR"
+}
+
 variable "github_owner" {
   type = string
 }

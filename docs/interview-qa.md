@@ -62,6 +62,13 @@ Q: How do you correct Terraform drift?
 A: Detect it with `terraform plan`, then change code and apply. I avoid fixing
 drift through the console because that creates hidden state.
 
+Q: If CI deploys the Cloud Run image, how do you avoid Terraform fighting CD?
+
+A: Terraform owns the Cloud Run service shape: IAM, service account, limits,
+environment and probes. The deployment pipeline owns image promotion, so the
+Terraform resource ignores only the container image field. That keeps service
+configuration reviewable without rolling a release back to an initial image.
+
 Q: Why not one service account for everything?
 
 A: It increases blast radius. If the API is compromised, it should not be able
@@ -189,6 +196,13 @@ Q: Which metrics matter?
 
 A: Latency p95, error rate, throughput, fallback rate, model version, score
 distribution, CTR/watch feedback and feature/model freshness.
+
+Q: Why expose `/health` as well as `/healthz`?
+
+A: Kubernetes commonly uses `/healthz`, and the chart uses it for liveness.
+Cloud Run documents some URL paths ending in `z` as reserved on public URLs, so
+the public `run.app` endpoint uses `/health` while `/readyz` reports model
+readiness.
 
 ## 7. GitOps Flux
 
@@ -354,4 +368,3 @@ Q: Why not implement Jx3 in this two-day project?
 
 A: Because Flux, KubeRay and GCP give the highest interview value quickly. I can
 explain Jx3 tradeoffs without overloading the implementation.
-

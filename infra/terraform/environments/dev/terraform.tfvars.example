@@ -1,8 +1,9 @@
-project_id        = "videorank-mlops-dev-123"
+project_id        = "videorank-mlops-werpo78"
 region            = "europe-west1"
 bigquery_location = "EU"
-budget_amount_usd = 75
-github_owner      = "werpo78"
-app_repo_name     = "videorank-mlops-app"
-config_repo_name  = "videorank-mlops-config"
-enable_gke_lab    = false
+budget_amount_usd   = 75
+budget_currency_code = "EUR"
+github_owner        = "werpo78"
+app_repo_name       = "videorank-mlops-app"
+config_repo_name    = "videorank-mlops-config"
+enable_gke_lab      = false

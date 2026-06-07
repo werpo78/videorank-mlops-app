@@ -16,6 +16,7 @@
 - Workload Identity Federation best practices: https://cloud.google.com/iam/docs/best-practices-for-using-workload-identity-federation
 - Deployment pipeline service accounts: https://cloud.google.com/iam/docs/best-practices-for-using-service-accounts-in-deployment-pipelines
 - Cloud Run service identity: https://cloud.google.com/run/docs/securing/service-identity
+- Cloud Run known issues: https://cloud.google.com/run/docs/known-issues
 - BigQuery cost best practices: https://cloud.google.com/bigquery/docs/best-practices-costs
 - Terraform on Google Cloud best practices: https://cloud.google.com/docs/terraform/best-practices-for-terraform
 - Dataflow pipeline lifecycle: https://cloud.google.com/dataflow/docs/pipeline-lifecycle
@@ -34,4 +35,3 @@
 - Dockerfile best practices: https://docs.docker.com/build/building/best-practices/
 - Helm chart best practices: https://helm.sh/docs/chart_best_practices/
 - Jenkins X 3 overview: https://jenkins-x.io/v3/about/how-it-works/
-

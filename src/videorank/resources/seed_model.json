@@ -1,0 +1,40 @@
+{
+  "catalog": [
+    {"category": "travel", "clicks": 15, "ctr": 0.25538461538461543, "impressions": 45, "positive_labels": 15, "positive_rate": 0.25538461538461543, "video_id": "video_00015"},
+    {"category": "travel", "clicks": 16, "ctr": 0.255072463768116, "impressions": 49, "positive_labels": 15, "positive_rate": 0.24057971014492754, "video_id": "video_00009"},
+    {"category": "news", "clicks": 19, "ctr": 0.3169230769230769, "impressions": 45, "positive_labels": 14, "positive_rate": 0.24, "video_id": "video_00014"},
+    {"category": "travel", "clicks": 14, "ctr": 0.23636363636363636, "impressions": 46, "positive_labels": 14, "positive_rate": 0.23636363636363636, "video_id": "video_00019"},
+    {"category": "sports", "clicks": 12, "ctr": 0.22295081967213115, "impressions": 41, "positive_labels": 12, "positive_rate": 0.22295081967213115, "video_id": "video_00000"},
+    {"category": "news", "clicks": 13, "ctr": 0.2979591836734694, "impressions": 29, "positive_labels": 9, "positive_rate": 0.21632653061224488, "video_id": "video_00006"},
+    {"category": "news", "clicks": 9, "ctr": 0.212, "impressions": 30, "positive_labels": 9, "positive_rate": 0.212, "video_id": "video_00018"},
+    {"category": "food", "clicks": 12, "ctr": 0.20923076923076922, "impressions": 45, "positive_labels": 12, "positive_rate": 0.20923076923076922, "video_id": "video_00001"},
+    {"category": "sports", "clicks": 14, "ctr": 0.2785714285714286, "impressions": 36, "positive_labels": 10, "positive_rate": 0.20714285714285713, "video_id": "video_00003"},
+    {"category": "music", "clicks": 8, "ctr": 0.17777777777777778, "impressions": 34, "positive_labels": 8, "positive_rate": 0.17777777777777778, "video_id": "video_00010"},
+    {"category": "sports", "clicks": 10, "ctr": 0.1841269841269841, "impressions": 43, "positive_labels": 8, "positive_rate": 0.15238095238095237, "video_id": "video_00007"},
+    {"category": "music", "clicks": 8, "ctr": 0.14769230769230768, "impressions": 45, "positive_labels": 8, "positive_rate": 0.14769230769230768, "video_id": "video_00002"},
+    {"category": "music", "clicks": 7, "ctr": 0.14098360655737704, "impressions": 41, "positive_labels": 7, "positive_rate": 0.14098360655737704, "video_id": "video_00012"},
+    {"category": "food", "clicks": 7, "ctr": 0.13870967741935483, "impressions": 42, "positive_labels": 7, "positive_rate": 0.13870967741935483, "video_id": "video_00008"},
+    {"category": "tech", "clicks": 6, "ctr": 0.1288135593220339, "impressions": 39, "positive_labels": 6, "positive_rate": 0.1288135593220339, "video_id": "video_00011"},
+    {"category": "sports", "clicks": 11, "ctr": 0.2135593220338983, "impressions": 39, "positive_labels": 6, "positive_rate": 0.1288135593220339, "video_id": "video_00005"},
+    {"category": "tech", "clicks": 7, "ctr": 0.12835820895522387, "impressions": 47, "positive_labels": 7, "positive_rate": 0.12835820895522387, "video_id": "video_00004"},
+    {"category": "music", "clicks": 5, "ctr": 0.12692307692307692, "impressions": 32, "positive_labels": 5, "positive_rate": 0.12692307692307692, "video_id": "video_00017"},
+    {"category": "sports", "clicks": 7, "ctr": 0.134375, "impressions": 44, "positive_labels": 6, "positive_rate": 0.11875, "video_id": "video_00016"},
+    {"category": "fashion", "clicks": 4, "ctr": 0.11666666666666665, "impressions": 28, "positive_labels": 4, "positive_rate": 0.11666666666666665, "video_id": "video_00013"}
+  ],
+  "feature_names": ["global_ctr", "user_category_ctr", "video_ctr", "device_category_ctr", "country_category_ctr", "video_impressions_log"],
+  "metrics": {
+    "auc": 0.5257867132867133,
+    "brier": 0.17212423199994065,
+    "eval_examples": 200.0,
+    "ndcg_at_10": 0.7031283375092917,
+    "recall_at_10": 1.0,
+    "train_examples": 800.0
+  },
+  "model_version": "seed-local-test",
+  "ranker": {
+    "bias": -1.0186810512475692,
+    "feature_names": ["global_ctr", "user_category_ctr", "video_ctr", "device_category_ctr", "country_category_ctr", "video_impressions_log"],
+    "weights": [-0.25607070617032573, -0.008108707151436828, -0.15821978223469726, -0.09336780635577516, -0.06469482490154517, -0.32143831156296093]
+  },
+  "trained_at": "2026-06-07T14:57:14.226045+00:00"
+}

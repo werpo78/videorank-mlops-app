@@ -67,9 +67,16 @@ def create_app() -> FastAPI:
         local_path=Path("artifacts/prediction_logs.jsonl"),
     )
 
+    def health_payload() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return health_payload()
+
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+        return health_payload()
 
     @app.get("/readyz")
     def readyz() -> dict[str, str]:

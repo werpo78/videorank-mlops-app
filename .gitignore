@@ -3,6 +3,10 @@
 .env.local
 .gcloud/
 .terraform/
+**/terraform.tfvars
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/tfplan
 __pycache__/
 *.py[cod]
 .pytest_cache/

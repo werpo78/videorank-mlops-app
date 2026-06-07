@@ -18,12 +18,14 @@ class Settings:
         dataset = os.getenv("VIDEORANK_BQ_DATASET", "videorank")
         return cls(
             project_id=project_id,
-            region=os.getenv("GCP_REGION", "us-central1"),
+            region=os.getenv("GCP_REGION", "europe-west1"),
             environment=os.getenv("VIDEORANK_ENV", "dev"),
-            model_path=os.getenv("VIDEORANK_MODEL_PATH", "artifacts/model/model.json"),
+            model_path=os.getenv(
+                "VIDEORANK_MODEL_PATH",
+                "src/videorank/resources/seed_model.json",
+            ),
             prediction_log_table=os.getenv(
                 "VIDEORANK_PREDICTION_LOG_TABLE",
                 f"{project_id}.{dataset}.prediction_logs",
             ),
         )
-

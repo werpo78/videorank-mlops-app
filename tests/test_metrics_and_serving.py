@@ -36,7 +36,20 @@ class MetricsAndServingTests(unittest.TestCase):
         self.assertEqual(len(response["recommendations"]), 5)
         self.assertEqual(response["model_version"], "test")
 
+    def test_api_health_and_readiness_routes_when_fastapi_is_installed(self) -> None:
+        try:
+            from fastapi.testclient import TestClient
+
+            from videorank.api.app import create_app
+        except ModuleNotFoundError:
+            self.skipTest("FastAPI test dependencies are not installed")
+
+        client = TestClient(create_app())
+
+        self.assertEqual(client.get("/health").json(), {"status": "ok"})
+        self.assertEqual(client.get("/healthz").json(), {"status": "ok"})
+        self.assertEqual(client.get("/readyz").json()["status"], "ready")
+
 
 if __name__ == "__main__":
     unittest.main()
-

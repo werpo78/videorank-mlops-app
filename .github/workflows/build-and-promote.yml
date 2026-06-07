@@ -53,7 +53,7 @@ jobs:
             --region="${REGION}" \
             --image="${{ steps.image.outputs.image }}" \
             --service-account="${{ secrets.GCP_RUNTIME_SERVICE_ACCOUNT }}" \
-            --set-env-vars="VIDEORANK_ENV=dev" \
+            --set-env-vars="VIDEORANK_ENV=dev,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCP_REGION=${REGION},VIDEORANK_BQ_DATASET=videorank" \
             --quiet
 
       - name: Checkout config repo

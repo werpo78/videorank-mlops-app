@@ -1,0 +1,11 @@
+.git/
+.gcloud/
+.venv/
+artifacts/
+data/
+__pycache__/
+*.pyc
+.terraform/
+.pytest_cache/
+.ruff_cache/
+

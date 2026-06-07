@@ -6,6 +6,10 @@ locals {
   }
 }
 
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
 resource "google_project_service" "services" {
   for_each = var.enabled_apis
 
@@ -258,6 +262,16 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+
+      env {
+        name  = "GCP_REGION"
+        value = var.region
+      }
+
+      env {
         name  = "VIDEORANK_BQ_DATASET"
         value = google_bigquery_dataset.videorank.dataset_id
       }
@@ -278,6 +292,15 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   depends_on = [google_project_service.services]
+
+  lifecycle {
+    ignore_changes = [
+      client,
+      client_version,
+      scaling,
+      template[0].containers[0].image,
+    ]
+  }
 }
 
 resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
@@ -309,12 +332,12 @@ resource "google_billing_budget" "project_budget" {
   display_name    = "VideoRank MLOps dev budget"
 
   budget_filter {
-    projects = ["projects/${var.project_id}"]
+    projects = ["projects/${data.google_project.current.number}"]
   }
 
   amount {
     specified_amount {
-      currency_code = "USD"
+      currency_code = var.budget_currency_code
       units         = tostring(var.budget_amount_usd)
     }
   }

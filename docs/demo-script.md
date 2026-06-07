@@ -18,6 +18,7 @@
 4. Call the API.
    - `/recommendations` returns top-K videos.
    - Variant is stable by user hash.
+   - `/health` is the public Cloud Run health endpoint.
    - `/metrics` exposes Prometheus metrics.
 
 5. Show GitOps.
@@ -31,4 +32,3 @@
    - BigQuery for features/logs.
    - Workload Identity Federation, no JSON keys.
    - Rollback by Git revert.
-
